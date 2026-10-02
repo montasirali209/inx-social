@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
+  CalendarRange,
   Check,
   ChevronRight,
   CircleDot,
@@ -20,10 +21,12 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from 'react-router-dom'
 import { uploadPostStudioReference } from '../../lib/ai-post-studio-api'
 import {
   analyzeCreativeFlow,
   getCreativeFlowRender,
+  handoffCreativeFlowCampaign,
   planCreativeFlow,
   regenerateCreativeFlowPost,
   retryCreativeFlowRender,
@@ -59,10 +62,10 @@ export function CreativeFlowLaunchCard({ onOpen }: { onOpen: () => void }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[9px] font-bold uppercase tracking-[.17em] text-brand-cyan">Creative Flow</span>
-            <span className="rounded-full border border-brand-purple/20 bg-brand-purple/[.07] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple">Stage 3</span>
+            <span className="rounded-full border border-brand-purple/20 bg-brand-purple/[.07] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple">Stage 4</span>
           </div>
           <h2 className="mt-2 text-lg font-semibold tracking-tight sm:text-xl">Turn one product into a complete visual campaign.</h2>
-          <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-muted">Analyse the real product, build a creative matrix, then generate distinct branded visuals in the background with review and regeneration controls.</p>
+          <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-muted">Analyse the real product, build a creative matrix, generate distinct branded visuals, approve the ones you want, then hand the campaign into Bulk Scheduler.</p>
           <div className="mt-4 flex flex-wrap gap-2 text-[9px] text-text-soft">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Package className="size-3 text-brand-cyan" />Verified product context</span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Target className="size-3 text-brand-purple" />Real AI strategy</span>
@@ -94,6 +97,7 @@ export function CreativeFlowLaunchCard({ onOpen }: { onOpen: () => void }) {
 }
 
 export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const navigate = useNavigate()
   const [view, setView] = useState<CreativeFlowView>('setup')
   const [website, setWebsite] = useState('')
   const [productName, setProductName] = useState('')
@@ -119,7 +123,10 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   const [renderError, setRenderError] = useState('')
   const [renderCampaign, setRenderCampaign] = useState<CreativeFlowRenderCampaign | null>(null)
   const [regenerating, setRegenerating] = useState<Set<string>>(new Set())
+  const [approvedPostIds, setApprovedPostIds] = useState<Set<string>>(new Set())
+  const [handoffBusy, setHandoffBusy] = useState(false)
   const [lightbox, setLightbox] = useState<{ url: string; label: string } | null>(null)
+  const approvalInitialisedForCampaign = useRef('')
   const dialogRef = useRef<HTMLElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
 
@@ -132,7 +139,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !running && !renderBusy) {
+      if (event.key === 'Escape' && !running && !renderBusy && !handoffBusy) {
         event.preventDefault()
         if (lightbox) setLightbox(null)
         else if (renderConfirm) setRenderConfirm(false)
@@ -147,7 +154,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
       document.body.style.overflow = previous
       previousFocus.current?.focus()
     }
-  }, [open, onClose, running, renderBusy, renderConfirm, lightbox])
+  }, [open, onClose, running, renderBusy, handoffBusy, renderConfirm, lightbox])
 
   const renderCampaignId = renderCampaign?.id || ''
   const renderCampaignStatus = renderCampaign?.status || ''
@@ -169,6 +176,15 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
       window.clearInterval(timer)
     }
   }, [open, view, renderCampaignId, renderCampaignStatus])
+
+  useEffect(() => {
+    if (!renderCampaign || renderCampaign.status === 'GENERATING_IMAGES') return
+    if (approvalInitialisedForCampaign.current === renderCampaign.id) return
+    const readyIds = renderCampaign.posts.filter((post) => Boolean(post.mediaAsset?.url)).map((post) => post.id)
+    if (!readyIds.length) return
+    approvalInitialisedForCampaign.current = renderCampaign.id
+    setApprovedPostIds(new Set(readyIds))
+  }, [renderCampaign])
 
   if (!open) return null
 
@@ -199,14 +215,14 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   }
 
   const closeFlow = () => {
-    if (running || renderBusy) return
+    if (running || renderBusy || handoffBusy) return
     assets.forEach((asset) => URL.revokeObjectURL(asset.url))
     setAssets([])
     onClose()
   }
 
   const resetFlow = () => {
-    if (running || renderBusy) return
+    if (running || renderBusy || handoffBusy) return
     setView('setup')
     setProgressIndex(0)
     setUploadProgress(0)
@@ -214,6 +230,8 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     setStrategy(null)
     setSelectedConcepts(new Set())
     setRenderCampaign(null)
+    setApprovedPostIds(new Set())
+    approvalInitialisedForCampaign.current = ''
     setRenderError('')
     setRunError('')
   }
@@ -339,6 +357,8 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
         concepts: keptConcepts(),
       })
       setRenderCampaign(response.campaign)
+      setApprovedPostIds(new Set())
+      approvalInitialisedForCampaign.current = ''
       setView('render')
     } catch (caught) {
       setRenderError(caught instanceof Error ? caught.message : 'Creative Flow could not start image generation.')
@@ -377,6 +397,19 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     }
   }
 
+  const sendApprovedToBulkScheduler = async () => {
+    if (!renderCampaign || !approvedPostIds.size || handoffBusy) return
+    setHandoffBusy(true)
+    setRenderError('')
+    try {
+      const response = await handoffCreativeFlowCampaign(renderCampaign.id, [...approvedPostIds])
+      navigate('/bulk-scheduler', { state: { aiCampaignId: response.campaign.id } })
+    } catch (caught) {
+      setRenderError(caught instanceof Error ? caught.message : 'Creative Flow could not hand the approved campaign to Bulk Scheduler.')
+      setHandoffBusy(false)
+    }
+  }
+
   return createPortal(
     <div className="fixed inset-0 z-[360] bg-slate-950/55 p-2 backdrop-blur-md sm:p-4" onMouseDown={(event) => { if (event.currentTarget === event.target) closeFlow() }}>
       <section aria-labelledby="creative-flow-title" aria-modal="true" className="mx-auto flex h-[calc(100dvh-1rem)] w-full max-w-[1280px] flex-col overflow-hidden rounded-[24px] border border-brand-cyan/25 bg-[#f8fafc] shadow-[0_38px_130px_rgba(15,23,42,.32)] sm:h-[calc(100dvh-2rem)]" ref={dialogRef} role="dialog">
@@ -384,14 +417,14 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/[.08] text-brand-cyan"><WandSparkles className="size-4.5" /></span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2"><h2 className="truncate text-base font-semibold sm:text-lg" id="creative-flow-title">Creative Flow</h2><span className="hidden rounded-full border border-brand-purple/20 bg-brand-purple/[.06] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple sm:inline">Stage 3 preview</span></div>
-              <p className="mt-0.5 hidden text-[10px] text-text-muted sm:block">Product understanding, strategy, background rendering and review are now connected.</p>
+              <div className="flex items-center gap-2"><h2 className="truncate text-base font-semibold sm:text-lg" id="creative-flow-title">Creative Flow</h2><span className="hidden rounded-full border border-brand-purple/20 bg-brand-purple/[.06] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple sm:inline">Stage 4 preview</span></div>
+              <p className="mt-0.5 hidden text-[10px] text-text-muted sm:block">Product understanding, strategy, generation, approval and Bulk Scheduler handoff are now connected.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {view !== 'setup' && view !== 'render' && <Button disabled={running || renderBusy} onClick={resetFlow} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Back to flow</Button>}
-            {view === 'render' && strategy && analysis && <Button disabled={renderBusy} onClick={() => setView('results')} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Strategy</Button>}
-            <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:text-text-main disabled:opacity-40" disabled={running || renderBusy} onClick={closeFlow} type="button"><X className="size-4" /></button>
+            {view !== 'setup' && view !== 'render' && <Button disabled={running || renderBusy || handoffBusy} onClick={resetFlow} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Back to flow</Button>}
+            {view === 'render' && strategy && analysis && <Button disabled={renderBusy || handoffBusy} onClick={() => setView('results')} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Strategy</Button>}
+            <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:text-text-main disabled:opacity-40" disabled={running || renderBusy || handoffBusy} onClick={closeFlow} type="button"><X className="size-4" /></button>
           </div>
         </header>
 
@@ -455,13 +488,24 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
           />}
 
           {view === 'render' && renderCampaign && <RenderWorkspace
+            approvedPostIds={approvedPostIds}
             campaign={renderCampaign}
             error={renderError}
+            handoffBusy={handoffBusy}
             regenerating={regenerating}
             retryBusy={renderBusy}
+            onApproveAll={() => setApprovedPostIds(new Set(renderCampaign.posts.filter((post) => Boolean(post.mediaAsset?.url)).map((post) => post.id)))}
+            onClearApprovals={() => setApprovedPostIds(new Set())}
+            onHandoff={() => void sendApprovedToBulkScheduler()}
             onOpenImage={(url, label) => setLightbox({ url, label })}
             onRegenerate={(postId) => void regeneratePost(postId)}
             onRetry={() => void retryMissing()}
+            onToggleApproved={(postId) => setApprovedPostIds((current) => {
+              const next = new Set(current)
+              if (next.has(postId)) next.delete(postId)
+              else next.add(postId)
+              return next
+            })}
           />}
         </div>
       </section>
@@ -602,7 +646,7 @@ function RenderConfirmation({ count, productName, busy, onCancel, onConfirm }: {
   return <div className="fixed inset-0 z-[410] grid place-items-center bg-slate-950/55 p-4 backdrop-blur-sm">
     <section aria-modal="true" className="w-full max-w-lg rounded-[24px] border border-brand-cyan/25 bg-white p-6 shadow-[0_36px_100px_rgba(15,23,42,.35)]" role="dialog">
       <span className="grid size-12 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/[.08] text-brand-cyan"><ImageIcon className="size-5" /></span>
-      <span className="mt-5 block text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">Start Stage 3</span>
+      <span className="mt-5 block text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">Start Stage 4</span>
       <h3 className="mt-1 text-xl font-semibold">Generate {count} real creatives?</h3>
       <p className="mt-2 text-[10px] leading-5 text-text-muted">Creative Flow will render {count} distinct images for <strong className="text-text-main">{productName}</strong>. The maximum planned charge is <strong className="text-text-main">{credits} AI credits</strong> at {IMAGE_CREDITS} credits per completed creative.</p>
       <div className="mt-4 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-3 text-[9px] leading-4 text-text-muted">Each completed image is saved directly to Media Library. Failed renders refund their reserved credits automatically. You may close the window after generation starts; the server continues the campaign in the background.</div>
@@ -611,14 +655,20 @@ function RenderConfirmation({ count, productName, busy, onCancel, onConfirm }: {
   </div>
 }
 
-function RenderWorkspace({ campaign, error, regenerating, retryBusy, onOpenImage, onRegenerate, onRetry }: {
+function RenderWorkspace({ approvedPostIds, campaign, error, handoffBusy, regenerating, retryBusy, onApproveAll, onClearApprovals, onHandoff, onOpenImage, onRegenerate, onRetry, onToggleApproved }: {
+  approvedPostIds: Set<string>
   campaign: CreativeFlowRenderCampaign
   error: string
+  handoffBusy: boolean
   regenerating: Set<string>
   retryBusy: boolean
+  onApproveAll: () => void
+  onClearApprovals: () => void
+  onHandoff: () => void
   onOpenImage: (url: string, label: string) => void
   onRegenerate: (postId: string) => void
   onRetry: () => void
+  onToggleApproved: (postId: string) => void
 }) {
   const ready = campaign.posts.filter((post) => Boolean(post.mediaAsset?.url)).length
   const missing = Math.max(0, campaign.imagePostCount - ready)
@@ -636,13 +686,19 @@ function RenderWorkspace({ campaign, error, regenerating, retryBusy, onOpenImage
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-border-soft bg-white px-3 py-1.5 text-[9px] font-semibold text-text-muted">{ready * campaign.creativeFlow.creditsPerCreative} credits completed</span>
         {running && <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-cyan/20 bg-brand-cyan/[.05] px-3 py-1.5 text-[9px] font-semibold text-brand-cyan"><Loader2 className="size-3 animate-spin" />Generating</span>}
-        {partial && missing > 0 && <Button disabled={retryBusy} onClick={onRetry} size="sm" variant="primary"><RefreshCw className={`size-3.5 ${retryBusy ? 'animate-spin' : ''}`} />Retry {missing} missing · {missing * campaign.creativeFlow.creditsPerCreative} credits</Button>}
+        {partial && missing > 0 && <Button disabled={retryBusy || handoffBusy} onClick={onRetry} size="sm"><RefreshCw className={`size-3.5 ${retryBusy ? 'animate-spin' : ''}`} />Retry {missing} missing · {missing * campaign.creativeFlow.creditsPerCreative} credits</Button>}
+        {ready > 0 && <Button disabled={!approvedPostIds.size || handoffBusy} onClick={onHandoff} size="sm" variant="primary">{handoffBusy ? <Loader2 className="size-3.5 animate-spin" /> : <CalendarRange className="size-3.5" />}Send {approvedPostIds.size} approved to Bulk Scheduler</Button>}
       </div>
     </div>
 
     {error && <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-[10px] text-red-700">{error}</div>}
 
     <div className="mt-5 h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${campaign.imagePostCount ? Math.round((ready / campaign.imagePostCount) * 100) : 0}%` }} /></div>
+
+    {ready > 0 && <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border-soft bg-white p-3">
+      <div><strong className="text-[10px]">{approvedPostIds.size} of {ready} completed creatives approved</strong><p className="mt-0.5 text-[8px] text-text-soft">Only approved creatives are copied into the standard campaign sent to Bulk Scheduler.</p></div>
+      <div className="flex gap-2"><Button disabled={handoffBusy} onClick={onApproveAll} size="sm">Approve all</Button><Button disabled={handoffBusy || !approvedPostIds.size} onClick={onClearApprovals} size="sm">Clear</Button></div>
+    </div>}
 
     <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{campaign.posts.map((post) => {
       const asset = post.mediaAsset
@@ -659,13 +715,14 @@ function RenderWorkspace({ campaign, error, regenerating, retryBusy, onOpenImage
           <h4 className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4">{post.hook || 'Campaign creative'}</h4>
           <p className="mt-1.5 line-clamp-2 text-[8px] leading-4 text-text-muted">{post.caption}</p>
           <div className="mt-3 flex gap-2">
-            {imageUrl && <Button className="flex-1" disabled={busy || running} onClick={() => onRegenerate(post.id)} size="sm">{busy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}Regenerate · {campaign.creativeFlow.creditsPerCreative}</Button>}
+            {imageUrl && <button className={`min-h-9 flex-1 rounded-xl border px-3 text-[9px] font-semibold transition ${approvedPostIds.has(post.id) ? 'border-brand-green/25 bg-brand-green/[.06] text-brand-green' : 'border-border-soft bg-white text-text-muted hover:border-brand-cyan/30'}`} disabled={handoffBusy} onClick={() => onToggleApproved(post.id)} type="button">{approvedPostIds.has(post.id) ? <><Check className="mr-1 inline size-3" />Approved</> : 'Approve'}</button>}
+            {imageUrl && <Button disabled={busy || running || handoffBusy} onClick={() => onRegenerate(post.id)} size="sm">{busy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}Regenerate · {campaign.creativeFlow.creditsPerCreative}</Button>}
             {imageUrl && <button aria-label="View full creative" className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted hover:text-text-main" onClick={() => onOpenImage(asset?.url || imageUrl, post.hook || `Creative ${post.sequence}`)} type="button"><Eye className="size-3.5" /></button>}
           </div>
         </div>
       </article>
     })}</div>
 
-    <div className="mt-6 rounded-[18px] border border-dashed border-brand-cyan/25 bg-white p-4 text-center"><strong className="text-xs">Stage 3 ends with review.</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">Rendering, credit accounting, background recovery, Media Library persistence and per-creative regeneration are live. Scheduling/publishing handoff stays isolated for the next stage.</p></div>
+    <div className="mt-6 rounded-[18px] border border-dashed border-brand-cyan/25 bg-white p-4 text-center"><strong className="text-xs">Stage 4 completes the campaign handoff.</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">Approve the finished creatives and send them into the standard INXSocial campaign workflow. Bulk Scheduler keeps control of accounts, dates, times, ordering, scheduling and cancellations; Creative Flow does not auto-publish.</p></div>
   </div>
 }
