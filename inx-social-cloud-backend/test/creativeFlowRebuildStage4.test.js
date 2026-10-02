@@ -11,7 +11,7 @@ test('Stage 4 grows Creative Strategy only after Campaign Setup and Generate onl
 
   assert.match(workspace, /if \(campaignConfigured\(project\)\)[\s\S]*id: 'creativeStrategy'/);
   assert.match(workspace, /if \(project\.workflow\.strategyPlan\)[\s\S]*id: 'generateCreatives'/);
-  assert.match(workspace, /source: 'campaignSetup'/);
+  assert.match(workspace, /source: 'productIntelligence'/);
   assert.match(workspace, /target: 'creativeStrategy'/);
   assert.match(workspace, /source: 'creativeStrategy'/);
   assert.match(workspace, /target: 'generateCreatives'/);
