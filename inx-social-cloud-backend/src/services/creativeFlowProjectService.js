@@ -104,7 +104,9 @@ function normalizeWorkflow(value) {
     review: {
       selectedPostIds: [...new Set((Array.isArray(input.review?.selectedPostIds) ? input.review.selectedPostIds : [])
         .map(value => clean(value, 160))
-        .filter(Boolean))].slice(0, 50)
+        .filter(Boolean))].slice(0, 50),
+      failedPostId: clean(input.review?.failedPostId, 160) || null,
+      failedPostError: clean(input.review?.failedPostError, 1200) || null
     },
     canvas: {
       positions: {
@@ -572,6 +574,33 @@ async function saveReviewSelection(userId, projectId, postIds) {
   return projectView(updated);
 }
 
+async function markReviewFailure(userId, projectId, postId, message) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  workflow.review.failedPostId = clean(postId, 160) || null;
+  workflow.review.failedPostError = clean(message, 1200) || null;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: { workflowJson: JSON.stringify(workflow), updatedAt: new Date() }
+  });
+  return projectView(updated);
+}
+
+async function clearReviewFailure(userId, projectId, postId = null) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  if (postId && workflow.review.failedPostId && workflow.review.failedPostId !== String(postId)) {
+    return projectView(project);
+  }
+  workflow.review.failedPostId = null;
+  workflow.review.failedPostError = null;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: { workflowJson: JSON.stringify(workflow), updatedAt: new Date() }
+  });
+  return projectView(updated);
+}
+
 async function linkHandoffCampaign(userId, projectId, campaignId) {
   const project = await requireProject(userId, projectId);
   const updated = await prisma.creativeFlowProject.update({
@@ -626,6 +655,8 @@ module.exports = {
   saveStrategySelection,
   linkRenderCampaign,
   saveReviewSelection,
+  markReviewFailure,
+  clearReviewFailure,
   linkHandoffCampaign,
   saveCanvasState,
   projectView,
