@@ -297,6 +297,7 @@ async function saveProductSource(userId, projectId, input = {}) {
     referenceNames: (Array.isArray(input.referenceNames) ? input.referenceNames : [])
       .map(value => clean(value, 220)).filter(Boolean).slice(0, 8)
   };
+  workflow.analysis = null;
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
     data: {
