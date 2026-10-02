@@ -210,6 +210,13 @@ function queueStrategyPlanning(userId, projectId) {
 
 async function startStrategyPlanning(userId, projectId) {
   const project = await projects.getProject(userId, projectId);
+  if (project.renderCampaignId) {
+    throw projects.publicError(
+      'Strategy is locked after creative generation starts.',
+      'CREATIVE_FLOW_UPSTREAM_LOCKED',
+      409
+    );
+  }
   if (!project.workflow?.analysis || !project.workflow?.campaignSetup?.platforms?.length) {
     throw projects.publicError(
       'Complete Product Intelligence and Campaign Setup before building strategy.',
