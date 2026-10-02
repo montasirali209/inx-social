@@ -443,6 +443,52 @@ async function startGeneration(userId, projectId) {
   return claimed;
 }
 
+async function retryMissingGeneration(userId, projectId) {
+  const project = await projects.reconcileProjectState(userId, projectId);
+  if (!project.renderCampaignId) {
+    throw projects.publicError('Generate creatives before retrying missing renders.', 'CREATIVE_FLOW_RENDER_REQUIRED', 409);
+  }
+
+  const campaign = await creativeFlow.getCreativeFlowRender(userId, project.renderCampaignId);
+  const posts = Array.isArray(campaign.posts) ? campaign.posts : [];
+  const missing = posts.filter(post => post.contentType === 'IMAGE' && !post.mediaAssetId);
+  if (!missing.length) return project;
+
+  const estimate = await creativeFlow.estimateCreativeFlowRender(userId, missing.length);
+  if (!estimate.canGenerate) {
+    throw projects.publicError(
+      `Retrying ${missing.length} missing creative${missing.length === 1 ? '' : 's'} needs ${estimate.requiredCredits} AI credits, but only ${estimate.creditsRemaining} credits remain.`,
+      'CREATIVE_FLOW_CREDITS_INSUFFICIENT',
+      402
+    );
+  }
+
+  const ready = posts.filter(post => post.contentType === 'IMAGE' && Boolean(post.mediaAssetId)).length;
+  const claimed = await projects.claimActiveJob(userId, projectId, {
+    jobType: 'CREATIVE_RENDER',
+    currentStage: 'CREATIVE_RENDER_RUNNING',
+    progressCurrent: ready,
+    progressTotal: Math.max(posts.filter(post => post.contentType === 'IMAGE').length, 1),
+    progressLabel: `Retrying ${missing.length} missing creative${missing.length === 1 ? '' : 's'}`
+  });
+
+  try {
+    await creativeFlow.retryCreativeFlowRender(userId, project.renderCampaignId);
+    queueRenderMonitor(userId, projectId, project.renderCampaignId, 500);
+    return claimed;
+  } catch (error) {
+    await projects.releaseActiveJob(userId, projectId, {
+      status: 'FAILED',
+      currentStage: 'CREATIVE_RENDER_FAILED',
+      progressCurrent: ready,
+      progressTotal: Math.max(posts.filter(post => post.contentType === 'IMAGE').length, 1),
+      progressLabel: 'Missing creative retry could not start',
+      lastError: error?.publicMessage || error?.message || 'Missing creative retry could not start.'
+    }).catch(() => {});
+    throw error;
+  }
+}
+
 async function processCreativeRegeneration(userId, projectId) {
   const project = await projects.getProject(userId, projectId);
   if (!project || project.activeJobType !== 'CREATIVE_REGENERATE' || !project.renderCampaignId || !project.activeJobId) return;
@@ -593,6 +639,7 @@ module.exports = {
   queueStrategyPlanning,
   generationEstimate,
   startGeneration,
+  retryMissingGeneration,
   processRenderStart,
   queueRenderStart,
   monitorRender,

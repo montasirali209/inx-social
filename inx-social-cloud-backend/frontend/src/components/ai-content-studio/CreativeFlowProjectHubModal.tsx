@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   archiveCreativeFlowProject,
+  restoreCreativeFlowProject,
   createCreativeFlowProject,
   listCreativeFlowProjects,
   openCreativeFlowProject,
@@ -106,6 +107,7 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
 
   const data = projectsQuery.data
   const activeProject = data?.activeProject || null
+  const archivedProjects = data?.archivedProjects || []
   const sortedProjects = useMemo(() => {
     const projects = data?.projects || []
     if (!activeProject) return projects
@@ -123,6 +125,7 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
       const project = await createCreativeFlowProject(name)
       queryClient.setQueryData<CreativeFlowProjectList>(['creative-flow-projects'], (current) => ({
         projects: [project, ...(current?.projects || []).filter((item) => item.id !== project.id)],
+        archivedProjects: current?.archivedProjects || [],
         activeProject: current?.activeProject || null,
       }))
       setProjectName('')
@@ -143,6 +146,7 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
       const opened = await openCreativeFlowProject(project.id)
       queryClient.setQueryData<CreativeFlowProjectList>(['creative-flow-projects'], (current) => ({
         projects: (current?.projects || []).map((item) => item.id === opened.id ? opened : item),
+        archivedProjects: current?.archivedProjects || [],
         activeProject: current?.activeProject?.id === opened.id ? opened : current?.activeProject || null,
       }))
       setSelectedProject(opened)
@@ -155,17 +159,37 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
 
   async function archiveProject(project: CreativeFlowProject) {
     if (busy) return
+    if (!window.confirm(`Archive “${project.name}”? You can restore it later from Archived projects.`)) return
     setBusy(true)
     setError('')
     try {
       await archiveCreativeFlowProject(project.id)
       queryClient.setQueryData<CreativeFlowProjectList>(['creative-flow-projects'], (current) => ({
         projects: (current?.projects || []).filter((item) => item.id !== project.id),
+        archivedProjects: [project, ...(current?.archivedProjects || []).filter((item) => item.id !== project.id)],
         activeProject: current?.activeProject?.id === project.id ? null : current?.activeProject || null,
       }))
       if (selectedProject?.id === project.id) setSelectedProject(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Creative Flow could not archive this project.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function restoreProject(project: CreativeFlowProject) {
+    if (busy) return
+    setBusy(true)
+    setError('')
+    try {
+      const restored = await restoreCreativeFlowProject(project.id)
+      queryClient.setQueryData<CreativeFlowProjectList>(['creative-flow-projects'], (current) => ({
+        projects: [restored, ...(current?.projects || []).filter((item) => item.id !== restored.id)],
+        archivedProjects: (current?.archivedProjects || []).filter((item) => item.id !== restored.id),
+        activeProject: current?.activeProject || null,
+      }))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not restore this project.')
     } finally {
       setBusy(false)
     }
@@ -200,6 +224,7 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
                 onBack={(latest) => {
                   queryClient.setQueryData<CreativeFlowProjectList>(['creative-flow-projects'], (current) => current ? {
                     projects: current.projects.map((item) => item.id === latest.id ? latest : item),
+                    archivedProjects: current.archivedProjects || [],
                     activeProject: latest.activeJobType
                       ? latest
                       : current.activeProject?.id === latest.id
@@ -237,6 +262,19 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
                     : sortedProjects.length
                       ? <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{sortedProjects.map((project) => <ProjectCard busy={busy} key={project.id} project={project} onArchive={() => void archiveProject(project)} onOpen={() => void openProject(project)} />)}</div>
                       : <div className="mt-5 grid min-h-[300px] place-items-center rounded-[24px] border border-dashed border-border-soft bg-white p-8 text-center"><div><span className="mx-auto grid size-14 place-items-center rounded-[20px] border border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan"><FolderOpen className="size-6" /></span><h4 className="mt-4 text-base font-semibold">Your first project starts here</h4><p className="mx-auto mt-1 max-w-md text-[10px] leading-5 text-text-muted">Name the project first. The Creative Flow workflow will always belong to that project and can be restored later.</p><Button className="mt-4" onClick={() => setCreateOpen(true)} size="sm" variant="primary"><Plus className="size-3.5" />Create project</Button></div></div>}
+
+                {archivedProjects.length > 0 && <section className="mt-7 border-t border-border-soft pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div><span className="text-[8px] font-bold uppercase tracking-[.15em] text-text-soft">Archived projects</span><p className="mt-1 text-[9px] text-text-muted">Archived work is recoverable and never disappears permanently.</p></div>
+                    <span className="rounded-full border border-border-soft bg-white px-2 py-1 text-[8px] font-semibold text-text-soft">{archivedProjects.length}</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {archivedProjects.map((project) => <article className="rounded-[16px] border border-border-soft bg-white p-3" key={project.id}>
+                      <div className="flex items-center gap-2"><Archive className="size-3.5 text-text-soft" /><strong className="min-w-0 flex-1 truncate text-[10px]">{project.name}</strong></div>
+                      <div className="mt-3 flex items-center justify-between gap-2"><span className="text-[8px] text-text-soft">{relativeTime(project.updatedAt)}</span><Button disabled={busy} onClick={() => void restoreProject(project)} size="sm">Restore</Button></div>
+                    </article>)}
+                  </div>
+                </section>}
               </div>}
         </div>
 

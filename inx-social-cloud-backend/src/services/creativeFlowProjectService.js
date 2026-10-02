@@ -116,6 +116,9 @@ function normalizeWorkflow(value) {
       selectedPostIds: [...new Set((Array.isArray(input.review?.selectedPostIds) ? input.review.selectedPostIds : [])
         .map(value => clean(value, 160))
         .filter(Boolean))].slice(0, 50),
+      revealedPostIds: [...new Set((Array.isArray(input.review?.revealedPostIds) ? input.review.revealedPostIds : [])
+        .map(value => clean(value, 160))
+        .filter(Boolean))].slice(0, 50),
       failedPostId: clean(input.review?.failedPostId, 160) || null,
       failedPostError: clean(input.review?.failedPostError, 1200) || null
     },
@@ -164,14 +167,22 @@ function projectView(project) {
 }
 
 async function listProjects(userId) {
-  const projects = await prisma.creativeFlowProject.findMany({
-    where: { userId, archivedAt: null },
-    orderBy: [{ activeJobType: 'desc' }, { updatedAt: 'desc' }],
-    take: 100
-  });
+  const [projects, archivedProjects] = await Promise.all([
+    prisma.creativeFlowProject.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: [{ activeJobType: 'desc' }, { updatedAt: 'desc' }],
+      take: 100
+    }),
+    prisma.creativeFlowProject.findMany({
+      where: { userId, archivedAt: { not: null } },
+      orderBy: { archivedAt: 'desc' },
+      take: 50
+    })
+  ]);
   const active = projects.find(project => Boolean(project.activeJobType)) || null;
   return {
     projects: projects.map(projectView),
+    archivedProjects: archivedProjects.map(projectView),
     activeProject: projectView(active)
   };
 }
@@ -203,17 +214,166 @@ async function requireProject(userId, projectId) {
   return project;
 }
 
+async function reconcileProjectState(userId, projectId, options = {}) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  const data = {};
+  let workflowChanged = false;
+
+  if (options.touchOpened) data.lastOpenedAt = new Date();
+
+  if (project.renderCampaignId) {
+    const campaign = await prisma.aiPostCampaign.findFirst({
+      where: { id: project.renderCampaignId, userId },
+      include: {
+        posts: {
+          orderBy: { sequence: 'asc' },
+          select: { id: true, contentType: true, mediaAssetId: true }
+        }
+      }
+    });
+
+    if (!campaign) {
+      data.renderCampaignId = null;
+      data.handoffCampaignId = null;
+      data.status = 'WAITING';
+      data.currentStage = workflow.strategyPlan ? 'STRATEGY_READY' : 'CAMPAIGN_READY';
+      data.progressCurrent = 0;
+      data.progressTotal = 0;
+      data.progressLabel = 'Render campaign was unavailable; the project was restored to the last safe planning stage.';
+      if (['CREATIVE_RENDER', 'CREATIVE_REGENERATE'].includes(project.activeJobType)) {
+        data.activeJobType = null;
+        data.activeJobId = null;
+        data.activeJobStartedAt = null;
+      }
+      workflow.review.selectedPostIds = [];
+      workflow.review.revealedPostIds = [];
+      workflow.review.failedPostId = null;
+      workflow.review.failedPostError = null;
+      workflow.canvas.creativePositions = {};
+      workflow.canvas.schedulePosition = null;
+      workflowChanged = true;
+    } else {
+      const imagePosts = campaign.posts.filter(post => post.contentType === 'IMAGE');
+      const validIds = new Set(imagePosts.map(post => post.id));
+      const completedIds = new Set(imagePosts.filter(post => Boolean(post.mediaAssetId)).map(post => post.id));
+      const ready = completedIds.size;
+      const total = imagePosts.length;
+
+      const selected = workflow.review.selectedPostIds.filter(id => completedIds.has(id));
+      if (selected.length !== workflow.review.selectedPostIds.length) {
+        workflow.review.selectedPostIds = selected;
+        workflowChanged = true;
+      }
+
+      const persistedReveal = workflow.review.revealedPostIds.filter(id => validIds.has(id));
+      const revealed = campaign.status === 'GENERATING_IMAGES'
+        ? persistedReveal
+        : imagePosts.map(post => post.id);
+      if (
+        revealed.length !== workflow.review.revealedPostIds.length
+        || revealed.some((id, index) => id !== workflow.review.revealedPostIds[index])
+      ) {
+        workflow.review.revealedPostIds = revealed;
+        workflowChanged = true;
+      }
+
+      // Stage 6 review nodes use a deterministic fixed graph. Discard Stage 5
+      // persisted creative/schedule positions so old projects cannot reopen with
+      // overlapping or user-moved final nodes.
+      if (Object.keys(workflow.canvas.creativePositions || {}).length) {
+        workflow.canvas.creativePositions = {};
+        workflowChanged = true;
+      }
+      if (workflow.canvas.schedulePosition) {
+        workflow.canvas.schedulePosition = null;
+        workflowChanged = true;
+      }
+
+      if (workflow.review.failedPostId && !validIds.has(workflow.review.failedPostId)) {
+        workflow.review.failedPostId = null;
+        workflow.review.failedPostError = null;
+        workflowChanged = true;
+      }
+
+      data.progressCurrent = ready;
+      data.progressTotal = total;
+
+      if (campaign.status === 'GENERATING_IMAGES') {
+        if (!project.activeJobType) {
+          const active = await activeProject(userId);
+          if (!active || active.id === project.id) {
+            data.activeJobType = 'CREATIVE_RENDER';
+            data.activeJobId = null;
+            data.activeJobStartedAt = new Date();
+            data.status = ACTIVE_STATUS;
+            data.currentStage = 'CREATIVE_RENDER_RUNNING';
+          }
+        }
+        data.progressLabel = `${ready} of ${total} creatives generated`;
+      } else if (project.activeJobType === 'CREATIVE_RENDER') {
+        data.activeJobType = null;
+        data.activeJobId = null;
+        data.activeJobStartedAt = null;
+        data.status = 'WAITING';
+        data.currentStage = selected.length
+          ? 'REVIEW_READY'
+          : campaign.status === 'READY'
+            ? 'RENDER_READY'
+            : 'RENDER_PARTIAL';
+        data.progressLabel = campaign.status === 'READY'
+          ? `${ready} creatives ready for review`
+          : `${ready} of ${total} creatives ready · some need retry`;
+      } else if (!project.activeJobType && !['HANDOFF_READY', 'REVIEW_READY'].includes(project.currentStage)) {
+        data.status = 'WAITING';
+        data.currentStage = selected.length
+          ? 'REVIEW_READY'
+          : campaign.status === 'READY'
+            ? 'RENDER_READY'
+            : 'RENDER_PARTIAL';
+        data.progressLabel = campaign.status === 'READY'
+          ? `${ready} creatives ready for review`
+          : `${ready} of ${total} creatives ready · some need retry`;
+      }
+    }
+  }
+
+  if (project.handoffCampaignId) {
+    const handoff = await prisma.aiPostCampaign.findFirst({
+      where: { id: project.handoffCampaignId, userId },
+      select: { id: true }
+    });
+    if (handoff) {
+      data.status = 'WAITING';
+      data.currentStage = 'HANDOFF_READY';
+      data.progressLabel = 'Approved creatives sent to Bulk Scheduler';
+    } else {
+      data.handoffCampaignId = null;
+      if (project.currentStage === 'HANDOFF_READY') {
+        data.currentStage = workflow.review.selectedPostIds.length ? 'REVIEW_READY' : 'RENDER_READY';
+        data.progressLabel = workflow.review.selectedPostIds.length
+          ? `${workflow.review.selectedPostIds.length} creatives selected for review`
+          : project.progressLabel;
+      }
+    }
+  }
+
+  if (workflowChanged) data.workflowJson = JSON.stringify(workflow);
+  if (!Object.keys(data).length) return projectView(project);
+
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data
+  });
+  return projectView(updated);
+}
+
 async function getProject(userId, projectId) {
-  return projectView(await requireProject(userId, projectId));
+  return reconcileProjectState(userId, projectId);
 }
 
 async function openProject(userId, projectId) {
-  await requireProject(userId, projectId);
-  const project = await prisma.creativeFlowProject.update({
-    where: { id: String(projectId) },
-    data: { lastOpenedAt: new Date() }
-  });
-  return projectView(project);
+  return reconcileProjectState(userId, projectId, { touchOpened: true });
 }
 
 async function renameProject(userId, projectId, name) {
@@ -241,6 +401,25 @@ async function archiveProject(userId, projectId) {
     data: { archivedAt: new Date(), status: 'ARCHIVED' }
   });
   return { ok: true };
+}
+
+async function restoreProject(userId, projectId) {
+  const project = await prisma.creativeFlowProject.findFirst({
+    where: { id: String(projectId), userId, archivedAt: { not: null } }
+  });
+  if (!project) {
+    throw publicError('Archived Creative Flow project not found.', 'CREATIVE_FLOW_ARCHIVED_PROJECT_NOT_FOUND', 404);
+  }
+  const restored = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      archivedAt: null,
+      status: project.currentStage === 'PROJECT_CREATED' ? 'DRAFT' : 'WAITING',
+      lastOpenedAt: new Date(),
+      updatedAt: new Date()
+    }
+  });
+  return reconcileProjectState(userId, restored.id, { touchOpened: true });
 }
 
 async function activeProject(userId, tx = prisma) {
@@ -589,6 +768,45 @@ async function saveReviewSelection(userId, projectId, postIds) {
   return projectView(updated);
 }
 
+async function saveReviewReveal(userId, projectId, postIds) {
+  const project = await requireProject(userId, projectId);
+  if (!project.renderCampaignId) {
+    throw publicError('Generate creatives before saving review progress.', 'CREATIVE_FLOW_RENDER_REQUIRED', 409);
+  }
+
+  const requested = [...new Set((Array.isArray(postIds) ? postIds : [])
+    .map(value => clean(value, 160))
+    .filter(Boolean))].slice(0, 50);
+
+  if (requested.length) {
+    const posts = await prisma.aiPostCampaignPost.findMany({
+      where: {
+        campaignId: project.renderCampaignId,
+        id: { in: requested },
+        contentType: 'IMAGE',
+        mediaAssetId: { not: null }
+      },
+      select: { id: true }
+    });
+    const validIds = new Set(posts.map(post => post.id));
+    if (requested.some(id => !validIds.has(id))) {
+      throw publicError(
+        'Only completed creatives from this project can be restored in review.',
+        'CREATIVE_FLOW_REVIEW_REVEAL_INVALID',
+        409
+      );
+    }
+  }
+
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  workflow.review.revealedPostIds = requested;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: { workflowJson: JSON.stringify(workflow), updatedAt: new Date() }
+  });
+  return projectView(updated);
+}
+
 async function markReviewFailure(userId, projectId, postId, message) {
   const project = await requireProject(userId, projectId);
   const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
@@ -670,8 +888,10 @@ module.exports = {
   createProject,
   getProject,
   openProject,
+  reconcileProjectState,
   renameProject,
   archiveProject,
+  restoreProject,
   activeProject,
   claimActiveJob,
   updateActiveJob,
@@ -683,6 +903,7 @@ module.exports = {
   saveStrategySelection,
   linkRenderCampaign,
   saveReviewSelection,
+  saveReviewReveal,
   markReviewFailure,
   clearReviewFailure,
   linkHandoffCampaign,

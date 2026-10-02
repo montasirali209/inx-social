@@ -208,6 +208,7 @@ export type CreativeFlowProject = {
     }
     review: {
       selectedPostIds: string[]
+      revealedPostIds: string[]
       failedPostId: string | null
       failedPostError: string | null
     }
@@ -236,6 +237,7 @@ export type CreativeFlowProject = {
 
 export type CreativeFlowProjectList = {
   projects: CreativeFlowProject[]
+  archivedProjects: CreativeFlowProject[]
   activeProject: CreativeFlowProject | null
 }
 
@@ -274,6 +276,13 @@ export function archiveCreativeFlowProject(projectId: string) {
     `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}`,
     { method: 'DELETE' },
   )
+}
+
+export function restoreCreativeFlowProject(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/restore`,
+    { method: 'POST' },
+  ).then((response) => response.project)
 }
 
 
@@ -392,6 +401,23 @@ export function saveCreativeFlowReviewSelection(projectId: string, postIds: stri
       method: 'PATCH',
       body: JSON.stringify({ postIds }),
     },
+  ).then((response) => response.project)
+}
+
+export function saveCreativeFlowReviewReveal(projectId: string, postIds: string[]) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/review-reveal`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ postIds }),
+    },
+  ).then((response) => response.project)
+}
+
+export function retryCreativeFlowMissing(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/retry-missing`,
+    { method: 'POST' },
   ).then((response) => response.project)
 }
 

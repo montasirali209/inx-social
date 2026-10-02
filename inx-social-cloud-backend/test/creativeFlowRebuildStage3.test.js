@@ -73,7 +73,7 @@ test('Stage 3 persists Campaign Setup node position with the same project canvas
 test('Stage 3 continues to use the motion system rather than introducing a separate page', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /Creative Flow · Stage 5/);
+  assert.match(workspace, /Creative Flow · Stage 6/);
   assert.match(workspace, /CreativeFlowMotionSlot/);
   assert.match(workspace, /gsap\.fromTo/);
   assert.match(workspace, /MotionEdge/);

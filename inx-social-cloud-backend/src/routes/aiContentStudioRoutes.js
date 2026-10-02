@@ -28,12 +28,15 @@ router.patch('/creative-flow/projects/:projectId/strategy-selection', controller
 router.get('/creative-flow/projects/:projectId/generation-estimate', controller.getCreativeFlowGenerationEstimate);
 router.post('/creative-flow/projects/:projectId/generate', controller.startCreativeFlowGeneration);
 router.patch('/creative-flow/projects/:projectId/review-selection', controller.saveCreativeFlowReviewSelection);
+router.patch('/creative-flow/projects/:projectId/review-reveal', controller.saveCreativeFlowReviewReveal);
+router.post('/creative-flow/projects/:projectId/retry-missing', controller.retryCreativeFlowMissing);
 router.post('/creative-flow/projects/:projectId/posts/:postId/regenerate', controller.regenerateCreativeFlowProjectPost);
 router.delete('/creative-flow/projects/:projectId/posts/:postId', controller.removeCreativeFlowProjectPost);
 router.post('/creative-flow/projects/:projectId/handoff', controller.handoffCreativeFlowProject);
 router.patch('/creative-flow/projects/:projectId/canvas', controller.saveCreativeFlowProjectCanvas);
 router.patch('/creative-flow/projects/:projectId', controller.renameCreativeFlowProject);
 router.delete('/creative-flow/projects/:projectId', controller.archiveCreativeFlowProject);
+router.post('/creative-flow/projects/:projectId/restore', controller.restoreCreativeFlowProject);
 router.post('/creative-flow/analyze', controller.analyzeCreativeFlow);
 router.post('/creative-flow/strategy', controller.planCreativeFlow);
 router.post('/creative-flow/render', controller.startCreativeFlowRender);

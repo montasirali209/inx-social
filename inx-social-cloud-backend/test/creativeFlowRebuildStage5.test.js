@@ -71,19 +71,18 @@ test('Stage 5 pins failures to the exact creative node with expressive retry sta
   assert.match(runtime, /clearReviewFailure/);
   assert.match(workspace, /regenerationFailed/);
   assert.match(workspace, /state=\{motionState\}/);
-  assert.match(workspace, /Retry this creative/);
+  assert.match(workspace, /Retry creative/);
 });
 
-test('Stage 5 creative node expands in place for visual direction caption variation and removal', () => {
+test('Stage 5 creative review retains regeneration removal and project-owned controls under the Stage 6 compact UI', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
   const service = read('src/services/creativeFlowService.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
 
-  assert.match(workspace, /Visual direction/);
-  assert.match(workspace, /Caption/);
-  assert.match(workspace, /New variation/);
-  assert.match(workspace, /Apply & regenerate/);
-  assert.match(workspace, /Remove from campaign/);
+  assert.match(workspace, /Regenerate/);
+  assert.match(workspace, /Optional direction for the next version/);
+  assert.match(workspace, /removeCreative\(postId\)/);
+  assert.doesNotMatch(workspace, /CreativeAssetEditor/);
   assert.match(service, /async function removeCreativeFlowPost/);
   assert.match(routes, /delete\('\/creative-flow\/projects\/:projectId\/posts\/:postId'/);
 });
@@ -112,7 +111,7 @@ test('Stage 5 does not add another database model for review state', () => {
 });
 
 
-test('Stage 5 persists generated creative and schedule node positions with the project canvas', () => {
+test('Stage 5 review state remains compatible while Stage 6 owns fixed final-node positioning', () => {
   const project = read('src/services/creativeFlowProjectService.js');
   const controller = read('src/controllers/aiContentStudioController.js');
   const api = read('frontend/src/lib/creative-flow-api.ts');
@@ -120,9 +119,9 @@ test('Stage 5 persists generated creative and schedule node positions with the p
 
   assert.match(project, /creativePositions: \{\}/);
   assert.match(project, /schedulePosition: null/);
-  assert.match(project, /workflow\.canvas\.creativePositions/);
   assert.match(controller, /creativePositions: z\.record\(creativeFlowPositionSchema\)/);
   assert.match(api, /creativePositions: Record<string, \{ x: number; y: number \}>/);
-  assert.match(workspace, /node\.id\.startsWith\('creative:'\)/);
-  assert.match(workspace, /schedulePosition: byId\.get\('scheduleCampaign'\) \|\| null/);
+  assert.match(workspace, /creativePositions: \{\}/);
+  assert.match(workspace, /schedulePosition: null/);
+  assert.match(workspace, /draggable: false/);
 });
