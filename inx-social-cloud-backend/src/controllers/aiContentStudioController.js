@@ -9,6 +9,7 @@ const runware = require('../services/runwareService');
 const campaignService = require('../services/aiPostCampaignService');
 const creativeFlowService = require('../services/creativeFlowService');
 const creativeFlowProjectService = require('../services/creativeFlowProjectService');
+const creativeFlowProjectRuntime = require('../services/creativeFlowProjectRuntime');
 
 const contentType = z.enum(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const generationSchema = z.object({
@@ -97,6 +98,31 @@ const creativeFlowProjectSchema = z.object({
 
 const creativeFlowProjectRenameSchema = z.object({
   name: z.string().trim().min(1).max(120)
+});
+
+const creativeFlowProjectAnalyzeSchema = z.object({
+  website: z.string().trim().max(2000).optional().default(''),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
+  referenceNames: z.array(z.string().trim().min(1).max(220)).max(8).optional().default([])
+});
+
+const creativeFlowPositionSchema = z.object({
+  x: z.number().finite().min(-10000).max(10000),
+  y: z.number().finite().min(-10000).max(10000)
+});
+
+const creativeFlowCanvasSchema = z.object({
+  positions: z.object({
+    productUrl: creativeFlowPositionSchema.optional(),
+    productImages: creativeFlowPositionSchema.optional(),
+    analyzeProduct: creativeFlowPositionSchema.optional(),
+    productIntelligence: creativeFlowPositionSchema.optional()
+  }).optional().default({}),
+  viewport: z.object({
+    x: z.number().finite().min(-20000).max(20000),
+    y: z.number().finite().min(-20000).max(20000),
+    zoom: z.number().finite().min(0.25).max(2.5)
+  }).optional()
 });
 
 const creativeFlowAnalyzeSchema = z.object({
@@ -376,6 +402,30 @@ async function openCreativeFlowProject(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function getCreativeFlowProject(req, res, next) {
+  try {
+    res.json({ project: await creativeFlowProjectService.getProject(req.user.id, req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function analyzeCreativeFlowProject(req, res, next) {
+  try {
+    const input = creativeFlowProjectAnalyzeSchema.parse(req.body || {});
+    res.status(202).json({
+      project: await creativeFlowProjectRuntime.startProductAnalysis(req.user.id, req.params.projectId, input)
+    });
+  } catch (error) { next(error); }
+}
+
+async function saveCreativeFlowProjectCanvas(req, res, next) {
+  try {
+    const input = creativeFlowCanvasSchema.parse(req.body || {});
+    res.json({
+      project: await creativeFlowProjectService.saveCanvasState(req.user.id, req.params.projectId, input)
+    });
+  } catch (error) { next(error); }
+}
+
 async function renameCreativeFlowProject(req, res, next) {
   try {
     const input = creativeFlowProjectRenameSchema.parse(req.body || {});
@@ -535,7 +585,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, renameCreativeFlowProject, archiveCreativeFlowProject,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, analyzeCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
