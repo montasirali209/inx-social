@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Creative Flow keeps the connected visual workflow through Stage 3', () => {
+test('Creative Flow keeps the connected visual workflow through Stage 4', () => {
   const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
   const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
   const canvas = read('frontend/src/components/ai-content-studio/CreativeFlowCanvas.tsx');
@@ -24,10 +24,10 @@ test('Creative Flow keeps the connected visual workflow through Stage 3', () => 
   assert.match(canvas, /Drag nodes/);
   assert.match(canvas, /Advanced options/);
   assert.match(canvas, /Run Creative Flow/);
-  assert.match(canvas, /Stage 3 preview/);
-  assert.match(modal, /Stage 3 preview/);
+  assert.match(canvas, /Stage 4 preview/);
+  assert.match(modal, /Stage 4 preview/);
   assert.match(modal, /Creative matrix/);
-  assert.match(modal, /Generate \{selectedConcepts\.size\}/);
+  assert.match(modal, /Send .* approved to Bulk Scheduler/);
 });
 
 test('Creative Flow planning remains source-grounded before paid rendering', () => {
@@ -46,11 +46,12 @@ test('Creative Flow planning remains source-grounded before paid rendering', () 
   assert.match(service, /Never invent features, prices, statistics, testimonials/);
   assert.match(service, /Concepts must be materially different/);
   assert.match(service, /Do not repeat angles or hooks already used/);
+  assert.match(service, /valid json object/);
   assert.match(api, /creative-flow\/analyze/);
   assert.match(api, /creative-flow\/strategy/);
 });
 
-test('Creative Flow Stage 3 creates persistent background image campaigns with credit preflight', () => {
+test('Creative Flow Stage 3 still creates persistent background image campaigns with credit preflight', () => {
   const routes = read('src/routes/aiContentStudioRoutes.js');
   const controller = read('src/controllers/aiContentStudioController.js');
   const service = read('src/services/creativeFlowService.js');
@@ -81,7 +82,7 @@ test('Creative Flow Stage 3 creates persistent background image campaigns with c
   assert.match(modal, /background queue/);
 });
 
-test('Stage 3 review supports full-size preview, retry and paid per-creative regeneration', () => {
+test('Stage 3 review still supports preview, retry and paid per-creative regeneration', () => {
   const service = read('src/services/creativeFlowService.js');
   const api = read('frontend/src/lib/creative-flow-api.ts');
   const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
@@ -98,7 +99,30 @@ test('Stage 3 review supports full-size preview, retry and paid per-creative reg
   assert.match(modal, /max-h-\[92dvh\]/);
 });
 
-test('Stage 3 still keeps scheduling and publishing isolated', () => {
+test('Stage 4 converts only approved completed creatives into a standard campaign', () => {
+  const routes = read('src/routes/aiContentStudioRoutes.js');
+  const controller = read('src/controllers/aiContentStudioController.js');
+  const service = read('src/services/creativeFlowService.js');
+  const api = read('frontend/src/lib/creative-flow-api.ts');
+  const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
+
+  assert.match(routes, /\/creative-flow\/render\/:campaignId\/handoff/);
+  assert.match(controller, /handoffCreativeFlowCampaign/);
+  assert.match(service, /approvedPostIds/);
+  assert.match(service, /Only completed image creatives can be sent to Bulk Scheduler/);
+  assert.match(service, /handoffSource/);
+  assert.match(service, /sourceCampaignId/);
+  assert.match(service, /contentMode: 'IMAGE'/);
+  assert.match(service, /status: 'READY'/);
+  assert.match(service, /lastHandoff/);
+  assert.match(api, /handoffCreativeFlowCampaign/);
+  assert.match(modal, /Approve all/);
+  assert.match(modal, /approvedPostIds/);
+  assert.match(modal, /Send .* approved to Bulk Scheduler/);
+  assert.match(modal, /navigate\('\/bulk-scheduler'/);
+});
+
+test('Stage 4 hands off but does not auto-publish or own scheduler controls', () => {
   const service = read('src/services/creativeFlowService.js');
   const controller = read('src/controllers/aiContentStudioController.js');
   const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
@@ -106,6 +130,6 @@ test('Stage 3 still keeps scheduling and publishing isolated', () => {
 
   assert.doesNotMatch(service, /publishBulk|sendDraftToPosts|ScheduleJob|socialPublication/);
   assert.doesNotMatch(controller, /creativeFlowService\.(?:publish|schedule)/);
-  assert.doesNotMatch(combined, /Bulk Scheduler handoff is live|publish campaign now/i);
-  assert.match(modal, /Scheduling\/publishing handoff stays isolated/);
+  assert.match(modal, /Bulk Scheduler keeps control of accounts, dates, times, ordering, scheduling and cancellations/);
+  assert.match(modal, /Creative Flow does not auto-publish/);
 });
