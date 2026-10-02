@@ -1498,7 +1498,8 @@ function CreativeAssetNode(props: NodeProps) {
   const expanded = expandedCreativeId === postId
   const regenerating = project.activeJobType === 'CREATIVE_REGENERATE' && project.activeJobId === postId
   const finishedCampaign = renderCampaign?.status !== 'GENERATING_IMAGES'
-  const failed = Boolean(post && !post.mediaAssetId && finishedCampaign && !regenerating)
+  const regenerationFailed = project.workflow.review.failedPostId === postId
+  const failed = Boolean(post && ((!post.mediaAssetId && finishedCampaign) || regenerationFailed) && !regenerating)
   const imageUrl = post?.mediaAsset?.url || post?.mediaAsset?.thumbnailUrl || ''
   const [captionDraft, setCaptionDraft] = useState(post?.caption || '')
   const [briefDraft, setBriefDraft] = useState(post?.imageBrief || '')
@@ -1562,7 +1563,7 @@ function CreativeAssetNode(props: NodeProps) {
 
         {regenerating && <div className="mt-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.04] p-2.5"><span className="flex items-center gap-2 text-[8px] font-semibold text-brand-cyan"><Loader2 className="size-3 animate-spin motion-reduce:animate-none" />Thinking, drawing and replacing this creative…</span><p className="mt-1 text-[7px] leading-4 text-text-soft">The previous version stays safe until the new render succeeds.</p></div>}
 
-        {project.currentStage === 'CREATIVE_REGENERATE_FAILED' && project.activeJobId === null && expanded && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'This creative could not be regenerated. Retry when ready.'}</div>}
+        {regenerationFailed && expanded && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.workflow.review.failedPostError || project.lastError || 'This creative could not be regenerated. Retry when ready.'}</div>}
 
         {expanded && <AnimatedExpand id={`creative-${postId}`}>
           <div className="nodrag mt-3 border-t border-border-soft pt-3">
