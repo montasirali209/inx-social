@@ -57,10 +57,10 @@ async function processProductAnalysis(userId, projectId) {
     await projects.updateActiveJob(userId, projectId, {
       currentStage: 'PRODUCT_ANALYSIS_RUNNING',
       progressCurrent: 1,
-      progressTotal: 3,
+      progressTotal: 5,
       progressLabel: source.normalizedUrl
-        ? 'Reading the product website and supplied references'
-        : 'Reading the supplied product references'
+        ? 'Collecting the product website and supplied references'
+        : 'Collecting the supplied product references'
     });
 
     const analysis = await creativeFlow.analyzeCreativeFlow(userId, {
@@ -69,19 +69,21 @@ async function processProductAnalysis(userId, projectId) {
       prompt: 'Understand this product and brand for a future Creative Flow campaign. Extract only evidence supported by the supplied website and product references.',
       audience: '',
       referenceAssetIds: source.referenceAssetIds || []
+    }, {
+      onProgress: ({ current, total, label }) => projects.updateActiveJob(userId, projectId, {
+        currentStage: 'PRODUCT_ANALYSIS_RUNNING',
+        progressCurrent: current,
+        progressTotal: total,
+        progressLabel: label
+      })
     });
 
-    await projects.updateActiveJob(userId, projectId, {
-      progressCurrent: 2,
-      progressTotal: 3,
-      progressLabel: 'Building Product Intelligence'
-    });
     await projects.saveProductAnalysis(userId, projectId, analysis);
     await projects.releaseActiveJob(userId, projectId, {
       status: 'WAITING',
       currentStage: 'PRODUCT_READY',
-      progressCurrent: 3,
-      progressTotal: 3,
+      progressCurrent: 5,
+      progressTotal: 5,
       progressLabel: 'Product Intelligence ready'
     });
   } catch (error) {
@@ -133,7 +135,7 @@ async function startProductAnalysis(userId, projectId, input = {}) {
     jobType: 'PRODUCT_ANALYSIS',
     currentStage: 'PRODUCT_ANALYSIS_RUNNING',
     progressCurrent: 0,
-    progressTotal: 3,
+    progressTotal: 5,
     progressLabel: 'Preparing product sources'
   });
 
