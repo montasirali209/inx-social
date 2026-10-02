@@ -1,4 +1,7 @@
+const prisma = require('../db/prisma');
 const postStudio = require('./aiPostStudioService');
+const credits = require('./aiCreditService');
+const campaignService = require('./aiPostCampaignService');
 
 const MAX_CONCEPTS = 50;
 const BATCH_SIZE = 20;
@@ -278,9 +281,228 @@ async function planCreativeFlow(_userId, input) {
   };
 }
 
+
+function parseJson(value, fallback) {
+  try { return JSON.parse(value); } catch (_) { return fallback; }
+}
+
+function safeBrandPack(value = {}) {
+  const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const cleanRef = item => item && typeof item === 'object' && item.url
+    ? { url: clean(item.url, 2000), kind: clean(item.kind, 40), label: clean(item.label, 180) }
+    : null;
+  const logo = cleanRef(input.logo);
+  const icon = cleanRef(input.icon);
+  return {
+    sourceUrl: clean(input.sourceUrl, 2000) || null,
+    brandName: clean(input.brandName, 160),
+    colors: cleanList(input.colors, 6, 24),
+    logo,
+    icon,
+    productVisuals: (Array.isArray(input.productVisuals) ? input.productVisuals : []).map(cleanRef).filter(Boolean).slice(0, 4),
+    heroVisuals: (Array.isArray(input.heroVisuals) ? input.heroVisuals : []).map(cleanRef).filter(Boolean).slice(0, 4),
+    confidence: ['high', 'medium', 'low'].includes(input.confidence) ? input.confidence : 'low',
+    confidenceScore: Math.max(0, Math.min(100, Number(input.confidenceScore || 0))),
+    lockLogo: Boolean(input.lockLogo && logo)
+  };
+}
+
+function conceptImageBrief(concept, input) {
+  return [
+    `Marketing angle: ${clean(concept.angle, 180)}.`,
+    `Public hook: ${clean(concept.hook, 240)}.`,
+    `Message: ${clean(concept.message, 600)}.`,
+    concept.cta ? `CTA: ${clean(concept.cta, 180)}.` : '',
+    concept.platformApproach ? `Platform approach: ${clean(concept.platformApproach, 280)}.` : '',
+    `Visual direction: ${clean(concept.visualStyle, 800)}.`,
+    input.style && input.style !== 'auto' ? `Customer-selected creative style: ${clean(input.style, 160)}.` : '',
+    'Create this as its own campaign creative. Do not reuse the composition, layout, hook treatment or visual metaphor from another Creative Flow concept.',
+    'Use only supported product facts. Do not invent prices, statistics, testimonials, awards, guarantees, integrations or performance claims.'
+  ].filter(Boolean).join('\n').slice(0, 2600);
+}
+
+function conceptCaption(concept) {
+  return [clean(concept.message, 1200), clean(concept.cta, 220)].filter(Boolean).join('\n\n') || clean(concept.hook, 1200) || 'Campaign creative';
+}
+
+async function creativeFlowAccess(userId, requiredCredits = 0) {
+  const access = await credits.getAccess(userId);
+  if (!access?.studioEnabled) {
+    throw publicError('Creative Flow generation is available on plans with AI Content Studio access.', 'CREATIVE_FLOW_UPGRADE_REQUIRED', 403);
+  }
+  if (requiredCredits > 0 && Number(access.creditsRemaining || 0) < requiredCredits) {
+    throw publicError(
+      `This Creative Flow render needs ${requiredCredits} AI credits, but only ${Number(access.creditsRemaining || 0)} credits remain.`,
+      'CREATIVE_FLOW_CREDITS_INSUFFICIENT',
+      402
+    );
+  }
+  return access;
+}
+
+async function rawCreativeFlowCampaign(userId, campaignId) {
+  const campaign = await prisma.aiPostCampaign.findFirst({
+    where: { id: String(campaignId), userId },
+    include: { posts: { orderBy: { sequence: 'asc' } } }
+  });
+  if (!campaign) throw publicError('Creative Flow campaign not found.', 'CREATIVE_FLOW_NOT_FOUND', 404);
+  const analysis = parseJson(campaign.analysisJson, {});
+  if (!analysis?.creativeFlow || Number(analysis.creativeFlow.version || 0) < 3) {
+    throw publicError('This campaign was not created by Creative Flow Stage 3.', 'CREATIVE_FLOW_NOT_FOUND', 404);
+  }
+  return { campaign, analysis };
+}
+
+async function publicCreativeFlowCampaign(userId, campaignId) {
+  const { campaign, analysis } = await rawCreativeFlowCampaign(userId, campaignId);
+  const value = campaignService.publicCampaign(campaign);
+  const creditsPerCreative = postStudio.IMAGE_CREDITS;
+  return {
+    ...value,
+    creativeFlow: {
+      version: Number(analysis.creativeFlow.version || 3),
+      creditsPerCreative,
+      plannedCredits: Number(analysis.creativeFlow.plannedCredits || value.imagePostCount * creditsPerCreative),
+      originalConceptCount: Number(analysis.creativeFlow.originalConceptCount || value.imagePostCount),
+      referenceAssetIds: cleanList(analysis.creativeFlow.referenceAssetIds, 8, 120)
+    }
+  };
+}
+
+async function startCreativeFlowRender(userId, input) {
+  requireProvider();
+  const concepts = (Array.isArray(input.concepts) ? input.concepts : []).slice(0, MAX_CONCEPTS);
+  if (!concepts.length) throw publicError('Keep at least one creative concept before generation.', 'CREATIVE_FLOW_NO_CONCEPTS', 400);
+
+  const requiredCredits = concepts.length * postStudio.IMAGE_CREDITS;
+  await creativeFlowAccess(userId, requiredCredits);
+
+  const normalizedUrl = input.website ? postStudio.normalizeUrl(input.website) : '';
+  if (input.website && !normalizedUrl) throw publicError('Enter a public product or business website.', 'CREATIVE_FLOW_URL_INVALID', 400);
+
+  const platforms = normalisePlatforms(input.platforms);
+  const brandPack = safeBrandPack(input.brandPack);
+  const sourceAnalysis = input.sourceAnalysis && typeof input.sourceAnalysis === 'object' ? input.sourceAnalysis : {};
+  const strategy = input.strategy && typeof input.strategy === 'object' ? input.strategy : {};
+  const referenceAssetIds = [...new Set((input.referenceAssetIds || []).map(String).filter(Boolean))].slice(0, 8);
+
+  const posts = concepts.map((concept, index) => ({
+    sequence: index + 1,
+    status: 'READY',
+    contentType: 'IMAGE',
+    title: '',
+    pillar: clean(concept.angle, 160) || null,
+    hook: clean(concept.hook, 180) || null,
+    caption: conceptCaption(concept),
+    cta: clean(concept.cta, 180) || null,
+    hashtagsJson: '[]',
+    imageBrief: conceptImageBrief(concept, input)
+  }));
+
+  const campaignMap = concepts.map((concept, index) => ({
+    sequence: index + 1,
+    contentType: 'IMAGE',
+    pillar: clean(concept.angle, 160),
+    objective: clean(concept.message, 280),
+    hookType: clean(concept.angle, 80),
+    ctaStyle: concept.cta ? 'concept-specific' : 'none',
+    platformApproach: clean(concept.platformApproach, 180)
+  }));
+
+  const campaign = await prisma.aiPostCampaign.create({
+    data: {
+      userId,
+      title: clean(strategy.campaignTitle || `${input.productName || sourceAnalysis.productName || 'Creative Flow'} campaign`, 160),
+      businessUrl: normalizedUrl || brandPack.sourceUrl || null,
+      goal: clean(input.goal || 'Creative Flow campaign', 1600),
+      audience: clean(strategy.audienceSummary || input.audience || sourceAnalysis.audience?.[0], 1000) || null,
+      tone: null,
+      contentMode: 'IMAGE',
+      platformsJson: JSON.stringify(platforms),
+      postCount: posts.length,
+      imagePostCount: posts.length,
+      status: 'GENERATING_IMAGES',
+      analysisJson: JSON.stringify({
+        strategySummary: clean(strategy.strategySummary, 1800),
+        audienceSummary: clean(strategy.audienceSummary || input.audience, 1000),
+        contentPillars: cleanList(strategy.contentPillars, 8, 180),
+        sourceSummary: clean(sourceAnalysis.summary, 1000),
+        sourceUrl: normalizedUrl || brandPack.sourceUrl || null,
+        brandPack,
+        sourceAnalysis,
+        campaignMap,
+        creativeFlow: {
+          version: 3,
+          originalConceptCount: concepts.length,
+          plannedCredits: requiredCredits,
+          referenceAssetIds,
+          concepts: concepts.map((concept, index) => ({
+            sequence: index + 1,
+            originalSequence: Number(concept.sequence || index + 1),
+            angle: clean(concept.angle, 160),
+            hook: clean(concept.hook, 220),
+            visualStyle: clean(concept.visualStyle, 300),
+            message: clean(concept.message, 600),
+            cta: clean(concept.cta, 180),
+            platformApproach: clean(concept.platformApproach, 260),
+            evidenceBasis: ['verified_source', 'user_brief', 'brand_safe_generic'].includes(concept.evidenceBasis)
+              ? concept.evidenceBasis
+              : 'brand_safe_generic'
+          }))
+        }
+      }),
+      posts: { create: posts }
+    },
+    include: { posts: { orderBy: { sequence: 'asc' } } }
+  });
+
+  campaignService.queueCampaignRender(userId, campaign.id);
+
+  return {
+    campaign: await publicCreativeFlowCampaign(userId, campaign.id),
+    creditsPerCreative: postStudio.IMAGE_CREDITS,
+    plannedCredits: requiredCredits
+  };
+}
+
+async function getCreativeFlowRender(userId, campaignId) {
+  return publicCreativeFlowCampaign(userId, campaignId);
+}
+
+async function retryCreativeFlowRender(userId, campaignId) {
+  const { campaign } = await rawCreativeFlowCampaign(userId, campaignId);
+  const pending = campaign.posts.filter(post => post.contentType === 'IMAGE' && !post.mediaAssetId);
+  if (!pending.length) return publicCreativeFlowCampaign(userId, campaignId);
+
+  await creativeFlowAccess(userId, pending.length * postStudio.IMAGE_CREDITS);
+  await prisma.aiPostCampaign.update({
+    where: { id: campaign.id },
+    data: { status: 'GENERATING_IMAGES', updatedAt: new Date() }
+  });
+  campaignService.queueCampaignRender(userId, campaign.id);
+  return publicCreativeFlowCampaign(userId, campaign.id);
+}
+
+async function regenerateCreativeFlowPost(userId, campaignId, postId) {
+  await rawCreativeFlowCampaign(userId, campaignId);
+  await creativeFlowAccess(userId, postStudio.IMAGE_CREDITS);
+  await campaignService.generatePostImage(userId, campaignId, postId);
+  return publicCreativeFlowCampaign(userId, campaignId);
+}
+
+async function removeCreativeFlowRender(userId, campaignId) {
+  await rawCreativeFlowCampaign(userId, campaignId);
+  return campaignService.removeCampaign(userId, campaignId);
+}
+
 module.exports = {
   MAX_CONCEPTS,
   analyzeCreativeFlow,
   planCreativeFlow,
+  startCreativeFlowRender,
+  getCreativeFlowRender,
+  retryCreativeFlowRender,
+  regenerateCreativeFlowPost,
+  removeCreativeFlowRender,
   normalisePlatforms
 };

@@ -131,6 +131,61 @@ const creativeFlowStrategySchema = z.object({
   sourceAnalysis: creativeFlowSourceAnalysisSchema
 });
 
+
+const creativeFlowBrandRefSchema = z.object({
+  url: z.string().trim().max(2000),
+  kind: z.string().trim().max(40).optional().default('reference'),
+  label: z.string().trim().max(180).optional().default('Official reference')
+});
+
+const creativeFlowBrandPackSchema = z.object({
+  sourceUrl: z.string().trim().max(2000).nullish(),
+  brandName: z.string().trim().max(160).optional().default(''),
+  colors: z.array(z.string().trim().max(24)).max(6).optional().default([]),
+  logo: creativeFlowBrandRefSchema.nullish(),
+  icon: creativeFlowBrandRefSchema.nullish(),
+  productVisuals: z.array(creativeFlowBrandRefSchema).max(4).optional().default([]),
+  heroVisuals: z.array(creativeFlowBrandRefSchema).max(4).optional().default([]),
+  confidence: z.enum(['high', 'medium', 'low']).optional().default('low'),
+  confidenceScore: z.number().min(0).max(100).optional().default(0),
+  lockLogo: z.boolean().optional().default(false)
+});
+
+const creativeFlowConceptSchema = z.object({
+  sequence: z.number().int().min(1).max(100),
+  angle: z.string().trim().min(1).max(160),
+  hook: z.string().trim().min(1).max(220),
+  visualStyle: z.string().trim().min(1).max(300),
+  message: z.string().trim().min(1).max(600),
+  cta: z.string().trim().max(180).optional().default(''),
+  platformApproach: z.string().trim().max(260).optional().default(''),
+  evidenceBasis: z.enum(['verified_source', 'user_brief', 'brand_safe_generic']).optional().default('brand_safe_generic')
+});
+
+const creativeFlowFoundationSchema = z.object({
+  campaignTitle: z.string().trim().max(160).optional().default('Creative Flow Campaign'),
+  strategySummary: z.string().trim().max(1800).optional().default(''),
+  audienceSummary: z.string().trim().max(1000).optional().default(''),
+  contentPillars: z.array(z.string().trim().max(180)).max(8).optional().default([]),
+  creativePrinciples: z.array(z.string().trim().max(220)).max(8).optional().default([]),
+  claimGuardrails: z.array(z.string().trim().max(260)).max(10).optional().default([])
+});
+
+const creativeFlowRenderSchema = z.object({
+  website: z.string().trim().max(2000).optional().default(''),
+  productName: z.string().trim().max(160).optional().default(''),
+  prompt: z.string().trim().min(2).max(2500),
+  platforms: z.array(z.string().trim().min(1).max(80)).max(8).optional().default([]),
+  goal: z.string().trim().max(120).optional().default('auto'),
+  style: z.string().trim().max(160).optional().default('auto'),
+  audience: z.string().trim().max(600).optional().default(''),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
+  sourceAnalysis: creativeFlowSourceAnalysisSchema,
+  brandPack: creativeFlowBrandPackSchema,
+  strategy: creativeFlowFoundationSchema,
+  concepts: z.array(creativeFlowConceptSchema).min(1).max(50)
+});
+
 const TRANSIENT_AI_STATUSES = new Set([500, 502, 503, 504]);
 
 function topupPacks() {
@@ -309,6 +364,40 @@ async function planCreativeFlow(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function startCreativeFlowRender(req, res, next) {
+  try {
+    const input = creativeFlowRenderSchema.parse(req.body || {});
+    res.status(202).json(await creativeFlowService.startCreativeFlowRender(req.user.id, input));
+  } catch (error) { next(error); }
+}
+
+async function getCreativeFlowRender(req, res, next) {
+  try {
+    res.json({ campaign: await creativeFlowService.getCreativeFlowRender(req.user.id, req.params.campaignId) });
+  } catch (error) { next(error); }
+}
+
+async function retryCreativeFlowRender(req, res, next) {
+  try {
+    res.status(202).json({ campaign: await creativeFlowService.retryCreativeFlowRender(req.user.id, req.params.campaignId) });
+  } catch (error) { next(error); }
+}
+
+async function regenerateCreativeFlowPost(req, res, next) {
+  try {
+    res.json({ campaign: await withStudioRetry(
+      () => creativeFlowService.regenerateCreativeFlowPost(req.user.id, req.params.campaignId, req.params.postId),
+      'Creative Flow image regeneration'
+    ) });
+  } catch (error) { next(error); }
+}
+
+async function deleteCreativeFlowRender(req, res, next) {
+  try {
+    res.json(await creativeFlowService.removeCreativeFlowRender(req.user.id, req.params.campaignId));
+  } catch (error) { next(error); }
+}
+
 async function createCampaign(req, res, next) {
   try {
     const input = campaignSchema.parse(req.body || {});
@@ -390,6 +479,6 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  analyzeCreativeFlow, planCreativeFlow,
+  analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };

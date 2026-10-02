@@ -18,6 +18,11 @@ router.post('/references', express.raw({
 router.post('/assistant/message', controller.assistantMessage);
 router.post('/creative-flow/analyze', controller.analyzeCreativeFlow);
 router.post('/creative-flow/strategy', controller.planCreativeFlow);
+router.post('/creative-flow/render', controller.startCreativeFlowRender);
+router.get('/creative-flow/render/:campaignId', controller.getCreativeFlowRender);
+router.post('/creative-flow/render/:campaignId/retry', controller.retryCreativeFlowRender);
+router.post('/creative-flow/render/:campaignId/posts/:postId/regenerate', controller.regenerateCreativeFlowPost);
+router.delete('/creative-flow/render/:campaignId', controller.deleteCreativeFlowRender);
 router.post('/generate/conversational-image-post', controller.generateConversationalImagePost);
 router.post('/generate/conversational-carousel', nextController.generateCarousel);
 router.get('/video/models', nextController.videoModels);
