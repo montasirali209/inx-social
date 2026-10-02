@@ -217,6 +217,86 @@ function focusNodeIds(project: CreativeFlowProject) {
   return ['productIntelligence', 'campaignSetup']
 }
 
+function creativeNodeId(postId: string) {
+  return `creative:${postId}`
+}
+
+function creativeNodePosition(project: CreativeFlowProject, index: number) {
+  const base = project.workflow.canvas.positions.generateCreatives
+  const rowCount = 4
+  const column = Math.floor(index / rowCount)
+  const row = index % rowCount
+  return {
+    x: base.x + 430 + (column * 360),
+    y: 70 + (row * 350),
+  }
+}
+
+function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
+  const base = project.workflow.canvas.positions.generateCreatives
+  const columns = Math.max(1, Math.ceil(Math.max(creativeCount, 1) / 4))
+  return {
+    x: base.x + 430 + (columns * 360) + 390,
+    y: base.y + 10,
+  }
+}
+
+function buildReviewGraph(
+  project: CreativeFlowProject,
+  campaign: CreativeFlowRenderCampaign | null,
+  revealedPostIds: string[],
+) {
+  if (!campaign || !project.renderCampaignId) return { nodes: [] as Stage2Node[], edges: [] as Stage2Edge[] }
+
+  const revealed = new Set(revealedPostIds)
+  const selected = new Set(project.workflow.review.selectedPostIds)
+  const finished = campaign.status !== 'GENERATING_IMAGES'
+  const visiblePosts = campaign.posts.filter((post) =>
+    revealed.has(post.id) || (finished && !post.mediaAssetId)
+  )
+
+  const nodes: Stage2Node[] = visiblePosts.map((post, index) => ({
+    id: creativeNodeId(post.id),
+    type: 'creativeAsset',
+    position: creativeNodePosition(project, index),
+    data: {},
+    draggable: true,
+  }))
+
+  const edges: Stage2Edge[] = visiblePosts.map((post) => ({
+    id: `generate-${post.id}`,
+    source: 'generateCreatives',
+    target: creativeNodeId(post.id),
+    type: 'motion',
+    data: {
+      active: project.activeJobType === 'CREATIVE_REGENERATE' && project.activeJobId === post.id,
+      complete: Boolean(post.mediaAssetId),
+    },
+  }))
+
+  const selectedVisible = visiblePosts.filter((post) => selected.has(post.id) && Boolean(post.mediaAssetId))
+  if (selectedVisible.length) {
+    nodes.push({
+      id: 'scheduleCampaign',
+      type: 'scheduleCampaign',
+      position: scheduleNodePosition(project, visiblePosts.length),
+      data: {},
+      draggable: true,
+    })
+    selectedVisible.forEach((post) => {
+      edges.push({
+        id: `selected-${post.id}-schedule`,
+        source: creativeNodeId(post.id),
+        target: 'scheduleCampaign',
+        type: 'motion',
+        data: { active: true, complete: Boolean(project.handoffCampaignId) },
+      })
+    })
+  }
+
+  return { nodes, edges }
+}
+
 function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
   const positions = project.workflow.canvas.positions
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
@@ -319,6 +399,8 @@ const nodeTypes = {
   campaignSetup: CampaignSetupNode,
   creativeStrategy: CreativeStrategyNode,
   generateCreatives: GenerateCreativesNode,
+  creativeAsset: CreativeAssetNode,
+  scheduleCampaign: ScheduleCampaignNode,
 }
 
 const edgeTypes = {
@@ -434,12 +516,13 @@ function CreativeFlowWorkspaceInner({
   }, [queryClient])
 
   useEffect(() => {
-    const nextNodes = defaultNodes(project)
+    const reviewGraph = buildReviewGraph(project, renderCampaign, revealedPostIds)
+    const nextNodes = [...defaultNodes(project), ...reviewGraph.nodes]
     setNodes((current) => nextNodes.map((node) => {
       const existing = current.find((item) => item.id === node.id)
       return existing ? { ...node, position: existing.position } : node
     }))
-    setEdges(defaultEdges(project))
+    setEdges([...defaultEdges(project), ...reviewGraph.edges])
 
     const focusKey = [
       project.currentStage,
@@ -461,9 +544,38 @@ function CreativeFlowWorkspaceInner({
         })
       }, 180)
     }
-  }, [analysis, flow, project, running, setEdges, setNodes])
+  }, [analysis, flow, project, renderCampaign, revealedPostIds, running, setEdges, setNodes])
+
+  useEffect(() => {
+    if (!renderCampaign) return
+    const readyPosts = renderCampaign.posts.filter((post) => Boolean(post.mediaAsset?.url || post.mediaAssetId))
+    const current = new Set(revealedPostIds)
+    const additions = readyPosts.filter((post) => !current.has(post.id) && !revealScheduledRef.current.has(post.id))
+    additions.forEach((post, index) => {
+      revealScheduledRef.current.add(post.id)
+      const timer = window.setTimeout(() => {
+        setRevealedPostIds((existing) => existing.includes(post.id) ? existing : [...existing, post.id])
+        if (project.activeJobType === 'CREATIVE_RENDER') {
+          window.setTimeout(() => {
+            void flow.fitView({
+              nodes: [{ id: 'generateCreatives' }, { id: creativeNodeId(post.id) }],
+              padding: 0.28,
+              duration: 520,
+              maxZoom: 1.05,
+            })
+          }, 60)
+        }
+      }, 140 + (index * 190))
+      revealTimersRef.current.push(timer)
+    })
+  }, [flow, project.activeJobType, renderCampaign, revealedPostIds])
 
   useEffect(() => () => {
+    revealTimersRef.current.forEach((timer) => window.clearTimeout(timer))
+    revealTimersRef.current = []
+  }, [])
+
+    useEffect(() => () => {
     previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     previewUrlsRef.current.clear()
   }, [])
