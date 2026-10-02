@@ -66,13 +66,15 @@ test('Stage 6 review offers select-all clear and missing-render recovery without
   assert.match(workspace, /scheduleCampaign/);
 });
 
-test('Stage 6 restores review focus to the latest creative and schedule branch', () => {
+test('Stage 6 restores review focus to the complete fixed creative graph and schedule branch', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
   assert.match(workspace, /project\.workflow\.review\.revealedPostIds\.length/);
-  assert.match(workspace, /lastRevealed/);
-  assert.match(workspace, /creativeNodeId\(lastRevealed\)/);
+  assert.match(workspace, /revealedPostIds\.map\(\(id\) => creativeNodeId\(id\)\)/);
   assert.match(workspace, /project\.workflow\.review\.selectedPostIds\.length \? \['scheduleCampaign'\]/);
+  assert.match(workspace, /const column = index % 4/);
+  assert.match(workspace, /const row = Math\.floor\(index \/ 4\)/);
+  assert.match(workspace, /draggable: false/);
 });
 
 test('Stage 6 keeps recovery state inside the existing project model', () => {
@@ -80,4 +82,56 @@ test('Stage 6 keeps recovery state inside the existing project model', () => {
 
   assert.doesNotMatch(schema, /model CreativeFlowRecovery/);
   assert.doesNotMatch(schema, /model CreativeFlowReview/);
+});
+
+
+test('Stage 6 completed campaigns backfill every review node so requested creatives cannot disappear', () => {
+  const service = read('src/services/creativeFlowProjectService.js');
+  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
+
+  assert.match(service, /campaign\.status === 'GENERATING_IMAGES'[\s\S]*persistedReveal[\s\S]*imagePosts\.map\(post => post\.id\)/);
+  assert.match(workspace, /finished \|\| revealed\.has\(post\.id\)/);
+  assert.match(workspace, /projectQuery\.data\?\.workflow\.review\.revealedPostIds/);
+});
+
+test('Stage 6 final creative cards stay compact and selection creates the scheduler branch', () => {
+  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
+
+  assert.doesNotMatch(workspace, /CreativeAssetEditor/);
+  assert.match(workspace, /Optional direction for the next version/);
+  assert.match(workspace, /toggleCreativeSelection\(postId\)/);
+  assert.match(workspace, /selectedVisible\.length/);
+  assert.match(workspace, /type: 'scheduleCampaign'/);
+  assert.match(workspace, /sendSelectedToScheduler/);
+});
+
+test('Stage 6 Creative Flow image rendering is OpenAI-only and uses high-quality final renders', () => {
+  const campaign = read('src/services/aiPostCampaignService.js');
+  const studio = read('src/services/aiPostStudioServiceV2.js');
+
+  assert.match(campaign, /quality: isCreativeFlow \? 'high' : 'medium'/);
+  assert.match(campaign, /postStudio\.generateImagePost/);
+  assert.doesNotMatch(campaign, /runware/i);
+  assert.match(studio, /provider: 'openai'/);
+  assert.match(studio, /async function openAIImage/);
+  assert.doesNotMatch(studio, /runware/i);
+  assert.match(studio, /protected header zone/);
+  assert.match(studio, /safeHeader/);
+});
+
+test('Stage 6 archived projects are recoverable instead of disappearing from the project hub', () => {
+  const service = read('src/services/creativeFlowProjectService.js');
+  const controller = read('src/controllers/aiContentStudioController.js');
+  const routes = read('src/routes/aiContentStudioRoutes.js');
+  const api = read('frontend/src/lib/creative-flow-api.ts');
+  const hub = read('frontend/src/components/ai-content-studio/CreativeFlowProjectHubModal.tsx');
+
+  assert.match(service, /archivedProjects/);
+  assert.match(service, /async function restoreProject/);
+  assert.match(controller, /restoreCreativeFlowProject/);
+  assert.match(routes, /projects\/:projectId\/restore/);
+  assert.match(api, /restoreCreativeFlowProject/);
+  assert.match(hub, /Archived projects/);
+  assert.match(hub, /Restore/);
+  assert.match(hub, /window\.confirm/);
 });
