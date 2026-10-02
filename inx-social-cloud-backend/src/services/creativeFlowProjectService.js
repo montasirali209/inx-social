@@ -52,7 +52,8 @@ function defaultCanvas() {
       productUrl: { x: 80, y: 120 },
       productImages: { x: 80, y: 390 },
       analyzeProduct: { x: 470, y: 255 },
-      productIntelligence: { x: 850, y: 225 }
+      productIntelligence: { x: 850, y: 225 },
+      campaignSetup: { x: 1280, y: 215 }
     },
     viewport: { x: 0, y: 0, zoom: 1 }
   };
@@ -77,12 +78,23 @@ function normalizeWorkflow(value) {
     analysis: input.analysis && typeof input.analysis === 'object' && !Array.isArray(input.analysis)
       ? input.analysis
       : null,
+    campaignSetup: {
+      goal: clean(input.campaignSetup?.goal || 'AI Recommended', 120) || 'AI Recommended',
+      platforms: (Array.isArray(input.campaignSetup?.platforms) ? input.campaignSetup.platforms : ['Instagram'])
+        .map(value => clean(value, 40))
+        .filter(Boolean)
+        .slice(0, 8),
+      creativeCount: Math.max(1, Math.min(50, Number(input.campaignSetup?.creativeCount || 20))),
+      style: clean(input.campaignSetup?.style || 'AI Recommended', 160) || 'AI Recommended',
+      audience: clean(input.campaignSetup?.audience, 500)
+    },
     canvas: {
       positions: {
         productUrl: cleanPosition(positions.productUrl, defaults.positions.productUrl),
         productImages: cleanPosition(positions.productImages, defaults.positions.productImages),
         analyzeProduct: cleanPosition(positions.analyzeProduct, defaults.positions.analyzeProduct),
-        productIntelligence: cleanPosition(positions.productIntelligence, defaults.positions.productIntelligence)
+        productIntelligence: cleanPosition(positions.productIntelligence, defaults.positions.productIntelligence),
+        campaignSetup: cleanPosition(positions.campaignSetup, defaults.positions.campaignSetup)
       },
       viewport: cleanViewport(input.canvas?.viewport, defaults.viewport)
     }
@@ -302,6 +314,12 @@ async function saveProductSource(userId, projectId, input = {}) {
     where: { id: project.id },
     data: {
       productUrl: workflow.source.normalizedUrl || null,
+      status: 'DRAFT',
+      currentStage: 'PROJECT_CREATED',
+      progressCurrent: 0,
+      progressTotal: 0,
+      progressLabel: null,
+      lastError: null,
       workflowJson: JSON.stringify(workflow),
       updatedAt: new Date()
     }
@@ -325,6 +343,53 @@ async function saveProductAnalysis(userId, projectId, analysis) {
   return projectView(updated);
 }
 
+async function saveCampaignSetup(userId, projectId, input = {}) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  if (!workflow.analysis) {
+    throw publicError(
+      'Analyse the product before configuring the campaign.',
+      'CREATIVE_FLOW_PRODUCT_ANALYSIS_REQUIRED',
+      409
+    );
+  }
+
+  const allowedPlatforms = new Map([
+    ['facebook', 'Facebook'],
+    ['instagram', 'Instagram'],
+    ['x', 'X'],
+    ['linkedin', 'LinkedIn'],
+    ['tiktok', 'TikTok'],
+    ['threads', 'Threads'],
+    ['bluesky', 'Bluesky'],
+    ['pinterest', 'Pinterest']
+  ]);
+  const platforms = [];
+  for (const value of Array.isArray(input.platforms) ? input.platforms : []) {
+    const normalized = allowedPlatforms.get(String(value || '').trim().toLowerCase());
+    if (normalized && !platforms.includes(normalized)) platforms.push(normalized);
+  }
+  workflow.campaignSetup = {
+    goal: clean(input.goal || 'AI Recommended', 120) || 'AI Recommended',
+    platforms: platforms.length ? platforms : ['Instagram'],
+    creativeCount: Math.max(1, Math.min(50, Number(input.creativeCount || 20))),
+    style: clean(input.style || 'AI Recommended', 160) || 'AI Recommended',
+    audience: clean(input.audience, 500)
+  };
+
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      status: 'WAITING',
+      currentStage: 'CAMPAIGN_READY',
+      workflowJson: JSON.stringify(workflow),
+      lastError: null,
+      updatedAt: new Date()
+    }
+  });
+  return projectView(updated);
+}
+
 async function saveCanvasState(userId, projectId, input = {}) {
   const project = await requireProject(userId, projectId);
   const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
@@ -333,7 +398,8 @@ async function saveCanvasState(userId, projectId, input = {}) {
     productUrl: cleanPosition(positions.productUrl, workflow.canvas.positions.productUrl),
     productImages: cleanPosition(positions.productImages, workflow.canvas.positions.productImages),
     analyzeProduct: cleanPosition(positions.analyzeProduct, workflow.canvas.positions.analyzeProduct),
-    productIntelligence: cleanPosition(positions.productIntelligence, workflow.canvas.positions.productIntelligence)
+    productIntelligence: cleanPosition(positions.productIntelligence, workflow.canvas.positions.productIntelligence),
+    campaignSetup: cleanPosition(positions.campaignSetup, workflow.canvas.positions.campaignSetup)
   };
   workflow.canvas.viewport = cleanViewport(input.viewport, workflow.canvas.viewport);
   const updated = await prisma.creativeFlowProject.update({
@@ -356,6 +422,7 @@ module.exports = {
   releaseActiveJob,
   saveProductSource,
   saveProductAnalysis,
+  saveCampaignSetup,
   saveCanvasState,
   projectView,
   normalizeWorkflow,

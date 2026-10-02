@@ -26,11 +26,13 @@ import {
   Globe2,
   ImagePlus,
   Loader2,
+  Layers3,
   Maximize2,
   Play,
   RefreshCw,
   ScanSearch,
   Sparkles,
+  Target,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -50,6 +52,7 @@ import { uploadPostStudioReference } from '../../../lib/ai-post-studio-api'
 import {
   analyzeCreativeFlowProject,
   getCreativeFlowProject,
+  saveCreativeFlowCampaignSetup,
   saveCreativeFlowProjectCanvas,
   saveCreativeFlowProjectSource,
   type CreativeFlowAnalysis,
@@ -74,6 +77,14 @@ type WorkspaceContextValue = {
   urlDraft: string
   urlExpanded: boolean
   imageExpanded: boolean
+  campaignExpanded: boolean
+  advancedExpanded: boolean
+  campaignBusy: boolean
+  campaignGoal: string
+  campaignPlatforms: string[]
+  creativeCount: number
+  creativeStyle: string
+  campaignAudience: string
   sourceBusy: boolean
   running: boolean
   error: string
@@ -82,6 +93,14 @@ type WorkspaceContextValue = {
   setUrlDraft: (value: string) => void
   setUrlExpanded: (value: boolean) => void
   setImageExpanded: (value: boolean) => void
+  setCampaignExpanded: (value: boolean) => void
+  setAdvancedExpanded: (value: boolean) => void
+  setCampaignGoal: (value: string) => void
+  toggleCampaignPlatform: (value: string) => void
+  setCreativeCount: (value: number) => void
+  setCreativeStyle: (value: string) => void
+  setCampaignAudience: (value: string) => void
+  saveCampaignSetup: () => void
   saveUrl: () => void
   uploadFiles: (files: File[]) => void
   removeReference: (index: number) => void
@@ -130,6 +149,7 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
     nodes.push({ id: 'analysisProcess', type: 'analysisProcess', position: positions.productIntelligence, data: {}, draggable: false })
   } else if (analysis) {
     nodes.push({ id: 'productIntelligence', type: 'productIntelligence', position: positions.productIntelligence, data: {}, draggable: true })
+    nodes.push({ id: 'campaignSetup', type: 'campaignSetup', position: positions.campaignSetup, data: {}, draggable: true })
   }
   return nodes
 }
@@ -170,6 +190,14 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       type: 'motion',
       data: { active: false, complete: true },
     })
+    const campaignReady = project.currentStage === 'CAMPAIGN_READY'
+    edges.push({
+      id: 'intelligence-campaign',
+      source: 'productIntelligence',
+      target: 'campaignSetup',
+      type: 'motion',
+      data: { active: !campaignReady, complete: campaignReady },
+    })
   }
   return edges
 }
@@ -180,6 +208,7 @@ const nodeTypes = {
   analyzeProduct: AnalyzeProductNode,
   analysisProcess: AnalysisProcessNode,
   productIntelligence: ProductIntelligenceNode,
+  campaignSetup: CampaignSetupNode,
 }
 
 const edgeTypes = {
@@ -214,6 +243,14 @@ function CreativeFlowWorkspaceInner({
   const [urlDraft, setUrlDraft] = useState(initialProject.workflow.source.websiteInput || initialProject.productUrl || '')
   const [urlExpanded, setUrlExpanded] = useState(false)
   const [imageExpanded, setImageExpanded] = useState(false)
+  const [campaignExpanded, setCampaignExpanded] = useState(false)
+  const [advancedExpanded, setAdvancedExpanded] = useState(false)
+  const [campaignBusy, setCampaignBusy] = useState(false)
+  const [campaignGoal, setCampaignGoal] = useState(initialProject.workflow.campaignSetup.goal)
+  const [campaignPlatforms, setCampaignPlatforms] = useState<string[]>(initialProject.workflow.campaignSetup.platforms)
+  const [creativeCount, setCreativeCount] = useState(initialProject.workflow.campaignSetup.creativeCount)
+  const [creativeStyle, setCreativeStyle] = useState(initialProject.workflow.campaignSetup.style)
+  const [campaignAudience, setCampaignAudience] = useState(initialProject.workflow.campaignSetup.audience)
   const [sourceBusy, setSourceBusy] = useState(false)
   const [error, setError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -263,7 +300,7 @@ function CreativeFlowWorkspaceInner({
       window.setTimeout(() => {
         void flow.fitView({
           nodes: analysis
-            ? [{ id: 'productUrl' }, { id: 'productImages' }, { id: 'analyzeProduct' }, { id: 'productIntelligence' }]
+            ? [{ id: 'productUrl' }, { id: 'productImages' }, { id: 'analyzeProduct' }, { id: 'productIntelligence' }, { id: 'campaignSetup' }]
             : [{ id: 'productUrl' }, { id: 'productImages' }, { id: 'analyzeProduct' }, { id: 'analysisProcess' }],
           padding: 0.2,
           duration: 720,
@@ -415,6 +452,32 @@ function CreativeFlowWorkspaceInner({
     }
   }, [blockedByAnother, flow, persistSource, project, running, sourceBusy, updateCachedProject, urlDraft])
 
+  const saveCampaign = useCallback(async () => {
+    if (campaignBusy || !analysis) return
+    if (!campaignPlatforms.length) {
+      setError('Choose at least one platform for this campaign.')
+      return
+    }
+    setCampaignBusy(true)
+    setError('')
+    try {
+      const next = await saveCreativeFlowCampaignSetup(project.id, {
+        goal: campaignGoal,
+        platforms: campaignPlatforms,
+        creativeCount,
+        style: creativeStyle,
+        audience: campaignAudience,
+      })
+      updateCachedProject(next)
+      setCampaignExpanded(false)
+      setAdvancedExpanded(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not save this campaign setup.')
+    } finally {
+      setCampaignBusy(false)
+    }
+  }, [analysis, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, project.id, updateCachedProject])
+
   const saveCanvas = useCallback(async (nextNodes: Stage2Node[], viewport?: Viewport) => {
     const byId = new Map(nextNodes.map((node) => [node.id, node.position]))
     try {
@@ -424,6 +487,7 @@ function CreativeFlowWorkspaceInner({
           productImages: byId.get('productImages'),
           analyzeProduct: byId.get('analyzeProduct'),
           productIntelligence: byId.get('productIntelligence') || byId.get('analysisProcess'),
+          campaignSetup: byId.get('campaignSetup'),
         },
         viewport,
       })
@@ -439,6 +503,14 @@ function CreativeFlowWorkspaceInner({
     urlDraft,
     urlExpanded,
     imageExpanded,
+    campaignExpanded,
+    advancedExpanded,
+    campaignBusy,
+    campaignGoal,
+    campaignPlatforms,
+    creativeCount,
+    creativeStyle,
+    campaignAudience,
     sourceBusy,
     running,
     error,
@@ -447,20 +519,28 @@ function CreativeFlowWorkspaceInner({
     setUrlDraft,
     setUrlExpanded,
     setImageExpanded,
+    setCampaignExpanded,
+    setAdvancedExpanded,
+    setCampaignGoal,
+    toggleCampaignPlatform: (value) => setCampaignPlatforms((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]),
+    setCreativeCount,
+    setCreativeStyle,
+    setCampaignAudience,
+    saveCampaignSetup: () => void saveCampaign(),
     saveUrl: () => void saveUrl(),
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [analysis, error, imageExpanded, localPreviews, project, removeReference, runAnalysis, running, saveUrl, sourceBusy, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, error, imageExpanded, localPreviews, project, removeReference, runAnalysis, running, saveCampaign, saveUrl, sourceBusy, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3 sm:p-4">
         <div className="pointer-events-auto max-w-[min(620px,72vw)] rounded-2xl border border-border-soft bg-white/92 px-3.5 py-2.5 shadow-[0_10px_32px_rgba(15,23,42,.07)] backdrop-blur-lg">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 2</span>
+            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 3</span>
             <span className={`rounded-full border px-2 py-0.5 text-[8px] font-semibold ${running ? 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan' : analysis ? 'border-brand-green/20 bg-brand-green/[.05] text-brand-green' : 'border-border-soft bg-slate-50 text-text-soft'}`}>
-              {running ? 'Analysing product' : analysis ? 'Product ready' : 'Source setup'}
+              {running ? 'Analysing product' : project.currentStage === 'CAMPAIGN_READY' ? 'Campaign ready' : analysis ? 'Configure campaign' : 'Source setup'}
             </span>
           </div>
           <p className="mt-1 truncate text-[10px] font-semibold">{project.name}</p>
@@ -706,8 +786,103 @@ function ProductIntelligenceNode(props: NodeProps) {
 
         {brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2" data-intelligence-chip><span className="text-[7px] uppercase tracking-[.1em] text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10 shadow-sm" key={color} style={{ backgroundColor: color }} />)}</div></div>}
         {analysis.analysedUrl?.url && <a className="nodrag mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3 shrink-0" /><span className="truncate">{displayDomain(analysis.analysedUrl.url)}</span><ExternalLink className="size-2.5 shrink-0" /></a>}
-        <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5" data-intelligence-chip><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Sparkles className="size-3" />Stage 2 complete</span><p className="mt-1 text-[8px] leading-4 text-text-muted">This node and its evidence are persisted with the project. The next campaign configuration step grows from here in Stage 3.</p></div>
+        <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5" data-intelligence-chip><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Sparkles className="size-3" />Product intelligence saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">This evidence remains attached to the project and now feeds the Campaign Setup node.</p></div>
       </div>
+    </NodeShell>
+  </div>
+}
+
+function CampaignSetupNode(props: NodeProps) {
+  void props
+  const {
+    project,
+    campaignExpanded,
+    advancedExpanded,
+    campaignBusy,
+    campaignGoal,
+    campaignPlatforms,
+    creativeCount,
+    creativeStyle,
+    campaignAudience,
+    setCampaignExpanded,
+    setAdvancedExpanded,
+    setCampaignGoal,
+    toggleCampaignPlatform,
+    setCreativeCount,
+    setCreativeStyle,
+    setCampaignAudience,
+    saveCampaignSetup,
+  } = useWorkspace()
+  const ready = project.currentStage === 'CAMPAIGN_READY'
+  const ref = useRef<HTMLDivElement>(null)
+  const platforms = ['Instagram', 'Facebook', 'X', 'LinkedIn', 'TikTok', 'Threads', 'Bluesky', 'Pinterest']
+  const goals = ['AI Recommended', 'Sales', 'Traffic', 'Awareness', 'Product launch']
+  const styles = ['AI Recommended', 'Performance ads', 'Minimal', 'Lifestyle', 'Editorial / infographic']
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, x: -34, scale: 0.86 }, { opacity: 1, x: 0, scale: 1, duration: 0.68, ease: 'back.out(1.65)' })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Right} type="source" />
+    <NodeShell className={`w-[360px] overflow-hidden transition-shadow ${campaignExpanded ? 'border-brand-purple/25 shadow-[0_26px_80px_rgba(139,92,246,.13)]' : ready ? 'border-brand-green/25' : 'border-brand-purple/20'}`}>
+      <button className="flex w-full items-center gap-3 p-4 text-left" onClick={() => setCampaignExpanded(!campaignExpanded)} type="button">
+        <CreativeFlowMotionSlot className="size-12 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign Setup</span>
+          <strong className="mt-1 block truncate text-[11px]">{ready ? `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}` : 'Shape the campaign'}</strong>
+          <span className="mt-0.5 block truncate text-[8px] text-text-soft">{campaignGoal} · {creativeStyle}</span>
+        </span>
+        {ready && !campaignExpanded
+          ? <span className="grid size-7 place-items-center rounded-full bg-brand-green/[.08] text-brand-green"><Check className="size-3.5" /></span>
+          : <ChevronDown className={`size-4 text-text-soft transition-transform ${campaignExpanded ? 'rotate-180' : ''}`} />}
+      </button>
+
+      {campaignExpanded && <AnimatedExpand id="campaign-setup">
+        <div className="nodrag border-t border-border-soft p-4">
+          <div>
+            <span className="text-[8px] font-semibold text-text-muted">Campaign goal</span>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {goals.map((goal) => <button className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-medium transition ${campaignGoal === goal ? 'border-brand-purple/30 bg-brand-purple/[.07] text-brand-purple' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} key={goal} onClick={() => setCampaignGoal(goal)} type="button">{goal}</button>)}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[8px] font-semibold text-text-muted">Platforms</span>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {platforms.map((platform) => {
+                const selected = campaignPlatforms.includes(platform)
+                return <button aria-pressed={selected} className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-medium transition ${selected ? 'border-brand-cyan/30 bg-brand-cyan/[.07] text-brand-cyan' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} key={platform} onClick={() => toggleCampaignPlatform(platform)} type="button">{selected && <Check className="mr-1 inline size-2.5" />}{platform}</button>
+              })}
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <span className="text-[8px] font-semibold text-text-muted">How many creatives?</span>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {[5, 10, 20, 50].map((count) => <button className={`min-w-10 rounded-lg border px-2.5 py-1.5 text-[8px] font-semibold transition ${creativeCount === count ? 'border-brand-cyan/30 bg-brand-cyan/[.07] text-brand-cyan' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} key={count} onClick={() => setCreativeCount(count)} type="button">{count}</button>)}
+              <label className="flex min-h-8 items-center rounded-lg border border-border-soft bg-white px-2"><span className="mr-1.5 text-[7px] text-text-soft">Custom</span><input aria-label="Custom creative count" className="w-10 bg-transparent text-[8px] font-semibold outline-none" max={50} min={1} onChange={(event) => setCreativeCount(Math.max(1, Math.min(50, Number(event.target.value || 1))))} type="number" value={creativeCount} /></label>
+            </div>
+          </div>
+
+          <button className="mt-4 flex w-full items-center justify-between rounded-xl border border-border-soft bg-slate-50 px-3 py-2 text-left" onClick={() => setAdvancedExpanded(!advancedExpanded)} type="button"><span><strong className="block text-[8px]">Advanced options</strong><span className="mt-0.5 block text-[7px] text-text-soft">Optional style and audience direction</span></span><ChevronDown className={`size-3.5 text-text-soft transition-transform ${advancedExpanded ? 'rotate-180' : ''}`} /></button>
+
+          {advancedExpanded && <AnimatedExpand id="campaign-advanced">
+            <div className="mt-3 space-y-3 rounded-xl border border-border-soft bg-slate-50/70 p-3">
+              <label className="block"><span className="text-[8px] font-semibold text-text-muted">Creative style</span><select className="mt-1.5 min-h-9 w-full rounded-lg border border-border-soft bg-white px-2.5 text-[8px] outline-none focus:border-brand-purple/40" onChange={(event) => setCreativeStyle(event.target.value)} value={creativeStyle}>{styles.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
+              <label className="block"><span className="text-[8px] font-semibold text-text-muted">Audience direction</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-lg border border-border-soft bg-white p-2.5 text-[8px] leading-4 outline-none focus:border-brand-purple/40" maxLength={500} onChange={(event) => setCampaignAudience(event.target.value)} placeholder="Optional — leave blank and Creative Flow will infer from Product Intelligence." value={campaignAudience} /></label>
+            </div>
+          </AnimatedExpand>}
+
+          <Button className="mt-4 w-full" disabled={campaignBusy || !campaignPlatforms.length} onClick={saveCampaignSetup} size="sm" variant="primary">{campaignBusy ? <Loader2 className="size-3 animate-spin" /> : ready ? <Check className="size-3" /> : <Target className="size-3" />}{ready ? 'Update campaign setup' : 'Save campaign setup'}</Button>
+          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Ready for strategy</span><p className="mt-1 text-[8px] leading-4 text-text-muted">Stage 3 stops here. The strategy node will grow from this connector in Stage 4.</p></div>}
+        </div>
+      </AnimatedExpand>}
     </NodeShell>
   </div>
 }

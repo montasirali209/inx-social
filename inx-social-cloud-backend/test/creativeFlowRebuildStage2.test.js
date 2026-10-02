@@ -39,7 +39,6 @@ test('Stage 2 begins with only product URL, product images and analyse controls'
   assert.match(workspace, /running && !analysis/);
   assert.match(workspace, /id: 'analysisProcess'/);
   assert.match(workspace, /id: 'productIntelligence'/);
-  assert.doesNotMatch(workspace, /id: 'campaignSetup'/);
   assert.doesNotMatch(workspace, /id: 'creativeStrategy'/);
   assert.doesNotMatch(workspace, /id: 'generateCreatives'/);
 });
