@@ -1050,6 +1050,158 @@ function CampaignSetupNode(props: NodeProps) {
   </div>
 }
 
+function CreativeStrategyNode(props: NodeProps) {
+  void props
+  const {
+    project,
+    strategyExpanded,
+    strategyBusy,
+    setStrategyExpanded,
+    startStrategy,
+    toggleStrategyConcept,
+  } = useWorkspace()
+  const plan = project.workflow.strategyPlan
+  const running = project.activeJobType === 'STRATEGY_PLANNING'
+  const failed = project.currentStage === 'STRATEGY_FAILED'
+  const selected = new Set(project.workflow.selectedConceptSequences)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, x: -38, scale: 0.84 }, { opacity: 1, x: 0, scale: 1, duration: 0.7, ease: 'back.out(1.7)' })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Left} type="target" />
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Right} type="source" />
+    <NodeShell className={`w-[420px] overflow-hidden ${running ? 'border-brand-purple/35 shadow-[0_26px_84px_rgba(139,92,246,.16)]' : plan ? 'border-brand-green/25' : 'border-brand-purple/20'}`}>
+      <div className="flex items-center gap-3 p-4">
+        <CreativeFlowMotionSlot className="size-14 shrink-0" state={running ? 'working' : plan ? 'success' : failed ? 'error' : 'idle'} />
+        <div className="min-w-0 flex-1">
+          <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Creative Strategy</span>
+          <strong className="mt-1 block truncate text-[12px]">
+            {running
+              ? project.progress.label || 'Planning campaign strategy…'
+              : plan
+                ? `${plan.concepts.length} distinct concepts ready`
+                : failed
+                  ? 'Strategy needs another try'
+                  : 'Plan the creative campaign'}
+          </strong>
+          <span className="mt-0.5 block truncate text-[8px] text-text-soft">
+            {plan ? `${selected.size} kept · ${plan.strategy.contentPillars.length} content pillars` : 'Uses Product Intelligence + Campaign Setup'}
+          </span>
+        </div>
+        {plan && !running && <button aria-label="Expand creative strategy" className="grid size-8 place-items-center rounded-lg border border-border-soft text-text-soft hover:text-text-main" onClick={() => setStrategyExpanded(!strategyExpanded)} type="button"><ChevronDown className={`size-3.5 transition-transform ${strategyExpanded ? 'rotate-180' : ''}`} /></button>}
+      </div>
+
+      {running && <div className="border-t border-border-soft p-4">
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-purple transition-all duration-500" style={{ width: `${Math.max(12, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
+        <p className="mt-2 text-[8px] leading-4 text-text-muted">The strategy job keeps running even if you leave this project.</p>
+      </div>}
+
+      {!plan && !running && <div className="nodrag border-t border-border-soft p-4">
+        <p className="text-[8px] leading-4 text-text-muted">Creative Flow will build the campaign foundation and then produce the exact number of materially different concepts requested in Campaign Setup.</p>
+        <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType)} onClick={startStrategy} size="sm" variant="primary">{strategyBusy ? <Loader2 className="size-3 animate-spin" /> : failed ? <RefreshCw className="size-3" /> : <BrainCircuit className="size-3" />}{failed ? 'Retry strategy' : 'Build creative strategy'}</Button>
+      </div>}
+
+      {plan && strategyExpanded && <AnimatedExpand id="creative-strategy">
+        <div className="nodrag border-t border-border-soft p-4">
+          <p className="text-[9px] leading-4 text-text-muted">{plan.strategy.strategySummary}</p>
+          {plan.strategy.contentPillars.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{plan.strategy.contentPillars.map((pillar) => <span className="rounded-full border border-brand-purple/15 bg-brand-purple/[.035] px-2 py-1 text-[7px] text-text-muted" key={pillar}>{pillar}</span>)}</div>}
+
+          <div className="mt-4 flex items-center justify-between"><span className="text-[8px] font-semibold text-text-muted">Concept matrix</span><span className="text-[8px] text-brand-green">{selected.size} kept</span></div>
+          <div className="mt-2 max-h-[300px] space-y-2 overflow-y-auto pr-1">
+            {plan.concepts.map((concept) => {
+              const kept = selected.has(concept.sequence)
+              return <button aria-pressed={kept} className={`block w-full rounded-xl border p-3 text-left transition ${kept ? 'border-brand-cyan/25 bg-brand-cyan/[.035]' : 'border-border-soft bg-slate-50 opacity-55'}`} disabled={strategyBusy || Boolean(project.activeJobType)} key={concept.sequence} onClick={() => toggleStrategyConcept(concept.sequence)} type="button">
+                <span className="flex items-start justify-between gap-2"><span className="min-w-0"><span className="block text-[7px] font-bold uppercase tracking-[.11em] text-brand-purple">{concept.angle}</span><strong className="mt-1 block text-[9px] leading-4">{concept.hook}</strong></span><span className={`grid size-6 shrink-0 place-items-center rounded-full border ${kept ? 'border-brand-green/25 bg-brand-green/[.08] text-brand-green' : 'border-border-soft bg-white text-text-soft'}`}>{kept ? <Check className="size-3" /> : <X className="size-3" />}</span></span>
+                <span className="mt-1.5 line-clamp-2 block text-[7px] leading-4 text-text-soft">{concept.visualStyle}</span>
+              </button>
+            })}
+          </div>
+
+          <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType)} onClick={startStrategy} size="sm"><RefreshCw className="size-3" />Regenerate strategy</Button>
+        </div>
+      </AnimatedExpand>}
+    </NodeShell>
+  </div>
+}
+
+function GenerateCreativesNode(props: NodeProps) {
+  void props
+  const {
+    project,
+    generationBusy,
+    generationEstimate,
+    generationEstimateLoading,
+    startGeneration,
+  } = useWorkspace()
+  const running = project.activeJobType === 'CREATIVE_RENDER'
+  const finished = renderFinished(project)
+  const partial = project.currentStage === 'RENDER_PARTIAL'
+  const failed = project.currentStage === 'CREATIVE_RENDER_FAILED'
+  const selectedCount = project.workflow.selectedConceptSequences.length
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, x: -40, scale: 0.82 }, { opacity: 1, x: 0, scale: 1, duration: 0.72, ease: 'back.out(1.75)' })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  const requiredCredits = generationEstimate?.requiredCredits || project.workflow.generation.plannedCredits
+  const creditsPerCreative = generationEstimate?.creditsPerCreative || project.workflow.generation.creditsPerCreative
+  const canStart = Boolean(generationEstimate?.canGenerate && !project.renderCampaignId && !running)
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Left} type="target" />
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Right} type="source" />
+    <NodeShell className={`w-[330px] overflow-hidden ${running ? 'border-brand-cyan/35 shadow-[0_28px_88px_rgba(20,184,166,.16)]' : finished ? 'border-brand-green/25' : failed ? 'border-red-200' : 'border-brand-cyan/20'}`}>
+      <div className="p-4">
+        <div className="flex items-center gap-3">
+          <CreativeFlowMotionSlot className="size-14 shrink-0" state={running ? 'working' : finished ? 'success' : failed ? 'error' : 'idle'} />
+          <div className="min-w-0 flex-1">
+            <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Generate Creatives</span>
+            <strong className="mt-1 block text-[11px]">{running ? project.progress.label || 'Generating…' : finished ? `${project.progress.current} creatives ready` : failed ? 'Generation needs attention' : `${selectedCount} concepts selected`}</strong>
+            <span className="mt-0.5 block text-[8px] text-text-soft">{creditsPerCreative ? `${creditsPerCreative} credits per completed creative` : 'Credit estimate loading'}</span>
+          </div>
+        </div>
+
+        {running && <div className="mt-4">
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(8, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
+          <div className="mt-1.5 flex justify-between text-[7px] text-text-soft"><span>{project.progress.current} ready</span><span>{project.progress.total} total</span></div>
+          <p className="mt-2 text-[8px] leading-4 text-text-muted">This is a persistent background render. You can close Creative Flow and come back later.</p>
+        </div>}
+
+        {!running && !project.renderCampaignId && <div className="mt-4 rounded-xl border border-border-soft bg-slate-50 p-3">
+          {generationEstimateLoading
+            ? <span className="flex items-center gap-2 text-[8px] text-text-muted"><Loader2 className="size-3 animate-spin" />Checking generation credits…</span>
+            : generationEstimate
+              ? <><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-text-muted"><Coins className="size-3 text-brand-cyan" />Planned generation</span><strong className="text-[9px]">{generationEstimate.requiredCredits} credits</strong></div><p className="mt-1.5 text-[7px] leading-4 text-text-soft">{generationEstimate.creditsRemaining} credits available. Failed image renders use the existing refund path.</p></>
+              : <span className="text-[8px] text-text-muted">Select at least one strategy concept to calculate generation cost.</span>}
+        </div>}
+
+        {!running && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || generationEstimateLoading || !canStart || Boolean(project.activeJobType)} onClick={startGeneration} size="sm" variant="primary">{generationBusy ? <Loader2 className="size-3 animate-spin" /> : <Rocket className="size-3" />}Generate {selectedCount}{requiredCredits ? ` · ${requiredCredits} credits` : ''}</Button>}
+
+        {generationEstimate && !generationEstimate.canGenerate && !project.renderCampaignId && <p className="mt-2 text-center text-[8px] text-red-600">Not enough AI credits for this selected strategy.</p>}
+
+        {finished && <div className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3">
+          <span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Images className="size-3" />{partial ? 'Generation partially complete' : 'Stage 4 generation complete'}</span>
+          <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Some renders need retry.' : 'The render campaign is persisted and completed images are already in Media Library.'} Stage 5 expands these results into individual interactive creative nodes.</p>
+        </div>}
+
+        {failed && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || !generationEstimate?.canGenerate} onClick={startGeneration} size="sm"><RefreshCw className="size-3" />Retry generation start</Button>}
+      </div>
+    </NodeShell>
+  </div>
+}
+
 function MotionEdge(props: EdgeProps<Stage2Edge>) {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props
   const pathRef = useRef<SVGPathElement>(null)
