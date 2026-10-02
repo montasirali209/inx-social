@@ -1428,49 +1428,8 @@ function AnalysisStepNode(props: NodeProps) {
 
 function ProductIntelligenceNode(props: NodeProps) {
   void props
-  const { analysis, project } = useWorkspace()
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const ctx = gsap.context(() => {
-      const timeline = gsap.timeline()
-      timeline.fromTo(ref.current, { scale: 0.74, opacity: 0, x: -30 }, { scale: 1, opacity: 1, x: 0, duration: 0.72, ease: 'back.out(1.8)' })
-      timeline.fromTo(ref.current?.querySelectorAll('[data-intelligence-chip]') || [], { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.34, stagger: 0.07 }, '-=.22')
-    }, ref)
-    return () => ctx.revert()
-  }, [])
-
-  if (!analysis) return null
-  const source = analysis.sourceAnalysis
-  const brand = analysis.brandPack
-  return <div ref={ref}>
-    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
-    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Right} type="source" />
-    <NodeShell className="w-[380px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.11)]">
-      <div className="border-b border-border-soft bg-[linear-gradient(135deg,rgba(240,253,250,.8),rgba(255,255,255,1))] p-4">
-        <div className="flex items-center gap-3">
-          <CreativeFlowMotionSlot className="size-16 shrink-0" state="success" />
-          <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-green">Product Intelligence</span><h4 className="mt-1 truncate text-[13px] font-semibold">{source.productName || brand.brandName || project.name}</h4><p className="mt-1 line-clamp-2 text-[8px] leading-4 text-text-muted">{source.summary || 'Product and brand sources analysed.'}</p></div>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="grid grid-cols-3 gap-2">
-          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Claims</span><strong className="mt-1 block text-[12px]">{source.verifiedClaims.length}</strong></div>
-          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">References</span><strong className="mt-1 block text-[12px]">{analysis.analysedReferences.length}</strong></div>
-          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Confidence</span><strong className="mt-1 block text-[10px] capitalize">{brand.confidence}</strong></div>
-        </div>
-
-        {brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2" data-intelligence-chip><span className="text-[7px] uppercase tracking-[.1em] text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10 shadow-sm" key={color} style={{ backgroundColor: color }} />)}</div></div>}
-        {analysis.analysedUrl?.url && <a className="nodrag mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3 shrink-0" /><span className="truncate">{displayDomain(analysis.analysedUrl.url)}</span><ExternalLink className="size-2.5 shrink-0" /></a>}
-        <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5" data-intelligence-chip><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Sparkles className="size-3" />Product intelligence saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">This evidence remains attached to the project and now feeds the Campaign Setup node.</p></div>
-      </div>
-    </NodeShell>
-  </div>
-}
-
-function CampaignSetupNode(props: NodeProps) {
-  void props
   const {
+    analysis,
     project,
     campaignExpanded,
     advancedExpanded,
@@ -1489,9 +1448,9 @@ function CampaignSetupNode(props: NodeProps) {
     setCampaignAudience,
     saveCampaignSetup,
   } = useWorkspace()
+  const ref = useRef<HTMLDivElement>(null)
   const ready = campaignConfigured(project)
   const locked = Boolean(project.activeJobType)
-  const ref = useRef<HTMLDivElement>(null)
   const platforms = ['Instagram', 'Facebook', 'X', 'LinkedIn', 'TikTok', 'Threads', 'Bluesky', 'Pinterest']
   const goals = ['AI Recommended', 'Sales', 'Traffic', 'Awareness', 'Product launch']
   const styles = ['AI Recommended', 'Performance ads', 'Minimal', 'Lifestyle', 'Editorial / infographic']
@@ -1499,29 +1458,62 @@ function CampaignSetupNode(props: NodeProps) {
   useEffect(() => {
     if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const ctx = gsap.context(() => {
-      gsap.fromTo(ref.current, { opacity: 0, x: -34, scale: 0.86 }, { opacity: 1, x: 0, scale: 1, duration: 0.68, ease: 'back.out(1.65)' })
+      const timeline = gsap.timeline()
+      timeline.fromTo(ref.current, { scale: 0.74, opacity: 0, x: -30 }, { scale: 1, opacity: 1, x: 0, duration: 0.72, ease: 'back.out(1.8)' })
+      timeline.fromTo(ref.current?.querySelectorAll('[data-intelligence-chip]') || [], { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.34, stagger: 0.07 }, '-=.22')
     }, ref)
     return () => ctx.revert()
   }, [])
 
+  if (!analysis) return null
+  const source = analysis.sourceAnalysis
+  const brand = analysis.brandPack
+
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
     <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Right} type="source" />
-    <NodeShell className={`w-[360px] overflow-hidden transition-shadow ${campaignExpanded ? 'border-brand-purple/25 shadow-[0_26px_80px_rgba(139,92,246,.13)]' : ready ? 'border-brand-green/25' : 'border-brand-purple/20'}`}>
-      <button className="flex w-full items-center gap-3 p-4 text-left" disabled={locked} onClick={() => setCampaignExpanded(!campaignExpanded)} type="button">
-        <CreativeFlowMotionSlot className="size-12 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
+    <NodeShell className={`w-[430px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.11)] ${campaignExpanded ? 'shadow-[0_28px_90px_rgba(139,92,246,.13)]' : ''}`}>
+      <div className="border-b border-border-soft bg-[linear-gradient(135deg,rgba(240,253,250,.8),rgba(255,255,255,1))] p-4">
+        <div className="flex items-center gap-3">
+          <CreativeFlowMotionSlot className="size-16 shrink-0" state="success" />
+          <div className="min-w-0">
+            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-green">Product Intelligence</span>
+            <h4 className="mt-1 truncate text-[13px] font-semibold">{source.productName || brand.brandName || project.name}</h4>
+            <p className="mt-1 line-clamp-2 text-[8px] leading-4 text-text-muted">{source.summary || 'Product and brand sources analysed.'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="grid grid-cols-3 gap-2">
+          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Claims</span><strong className="mt-1 block text-[12px]">{source.verifiedClaims.length}</strong></div>
+          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">References</span><strong className="mt-1 block text-[12px]">{analysis.analysedReferences.length}</strong></div>
+          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Confidence</span><strong className="mt-1 block text-[10px] capitalize">{brand.confidence}</strong></div>
+        </div>
+
+        {brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2" data-intelligence-chip><span className="text-[7px] uppercase tracking-[.1em] text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10 shadow-sm" key={color} style={{ backgroundColor: color }} />)}</div></div>}
+        {analysis.analysedUrl?.url && <a className="nodrag mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3 shrink-0" /><span className="truncate">{displayDomain(analysis.analysedUrl.url)}</span><ExternalLink className="size-2.5 shrink-0" /></a>}
+      </div>
+
+      <button
+        className={`nodrag flex w-full items-center gap-3 border-t border-border-soft px-4 py-3.5 text-left transition ${campaignExpanded ? 'bg-brand-purple/[.035]' : 'bg-slate-50/65 hover:bg-slate-50'}`}
+        disabled={locked}
+        onClick={() => setCampaignExpanded(!campaignExpanded)}
+        type="button"
+      >
+        <CreativeFlowMotionSlot className="size-11 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
         <span className="min-w-0 flex-1">
           <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign Setup</span>
-          <strong className="mt-1 block truncate text-[11px]">{ready ? `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}` : 'Shape the campaign'}</strong>
-          <span className="mt-0.5 block truncate text-[8px] text-text-soft">{campaignGoal} · {creativeStyle}</span>
+          <strong className="mt-0.5 block truncate text-[10px]">{ready ? `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}` : 'Set up this campaign'}</strong>
+          <span className="mt-0.5 block truncate text-[7px] text-text-soft">{campaignGoal} · {creativeStyle}</span>
         </span>
         {ready && !campaignExpanded
           ? <span className="grid size-7 place-items-center rounded-full bg-brand-green/[.08] text-brand-green"><Check className="size-3.5" /></span>
           : <ChevronDown className={`size-4 text-text-soft transition-transform ${campaignExpanded ? 'rotate-180' : ''}`} />}
       </button>
 
-      {campaignExpanded && <AnimatedExpand id="campaign-setup">
-        <div className="nodrag border-t border-border-soft p-4">
+      {campaignExpanded && <AnimatedExpand id="campaign-setup-inline">
+        <div className="nodrag border-t border-border-soft bg-white p-4">
           <div>
             <span className="text-[8px] font-semibold text-text-muted">Campaign goal</span>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1549,7 +1541,7 @@ function CampaignSetupNode(props: NodeProps) {
 
           <button className="mt-4 flex w-full items-center justify-between rounded-xl border border-border-soft bg-slate-50 px-3 py-2 text-left" onClick={() => setAdvancedExpanded(!advancedExpanded)} type="button"><span><strong className="block text-[8px]">Advanced options</strong><span className="mt-0.5 block text-[7px] text-text-soft">Optional style and audience direction</span></span><ChevronDown className={`size-3.5 text-text-soft transition-transform ${advancedExpanded ? 'rotate-180' : ''}`} /></button>
 
-          {advancedExpanded && <AnimatedExpand id="campaign-advanced">
+          {advancedExpanded && <AnimatedExpand id="campaign-advanced-inline">
             <div className="mt-3 space-y-3 rounded-xl border border-border-soft bg-slate-50/70 p-3">
               <label className="block"><span className="text-[8px] font-semibold text-text-muted">Creative style</span><select className="mt-1.5 min-h-9 w-full rounded-lg border border-border-soft bg-white px-2.5 text-[8px] outline-none focus:border-brand-purple/40" onChange={(event) => setCreativeStyle(event.target.value)} value={creativeStyle}>{styles.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
               <label className="block"><span className="text-[8px] font-semibold text-text-muted">Audience direction</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-lg border border-border-soft bg-white p-2.5 text-[8px] leading-4 outline-none focus:border-brand-purple/40" maxLength={500} onChange={(event) => setCampaignAudience(event.target.value)} placeholder="Optional — leave blank and Creative Flow will infer from Product Intelligence." value={campaignAudience} /></label>
@@ -1557,7 +1549,7 @@ function CampaignSetupNode(props: NodeProps) {
           </AnimatedExpand>}
 
           <Button className="mt-4 w-full" disabled={campaignBusy || locked || !campaignPlatforms.length} onClick={saveCampaignSetup} size="sm" variant="primary">{campaignBusy ? <Loader2 className="size-3 animate-spin" /> : ready ? <Check className="size-3" /> : <Target className="size-3" />}{ready ? 'Update campaign setup' : 'Save campaign setup'}</Button>
-          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Campaign setup saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">The strategy node is connected and can now plan the campaign.</p></div>}
+          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Campaign setup saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">Creative Strategy can now grow from this same Product Intelligence node.</p></div>}
         </div>
       </AnimatedExpand>}
     </NodeShell>
