@@ -135,7 +135,7 @@ type WorkspaceContextValue = {
   setCreativeCount: (value: number) => void
   setCreativeStyle: (value: string) => void
   setCampaignAudience: (value: string) => void
-  saveCampaignSetup: () => void
+  generateCampaign: () => void
   startStrategy: () => void
   toggleStrategyConcept: (sequence: number) => void
   startGeneration: () => void
@@ -555,16 +555,16 @@ function CreativeFlowWorkspaceInner({
 
   const analysis = project.workflow.analysis
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
-  const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
+  const strategyRunning = ['STRATEGY_PLANNING', 'CAMPAIGN_GENERATION'].includes(project.activeJobType || '')
   const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
   const anyJobRunning = Boolean(project.activeJobType)
   const blockedByAnother = Boolean(activeProject && activeProject.id !== project.id && activeProject.activeJobType)
   const selectedSequences = project.workflow.selectedConceptSequences
   const generationEstimateQuery = useQuery({
-    queryKey: ['creative-flow-generation-estimate', project.id, selectedSequences.join(',')],
-    queryFn: () => getCreativeFlowGenerationEstimate(project.id),
-    enabled: Boolean(project.workflow.strategyPlan && selectedSequences.length && !project.renderCampaignId && !renderRunning),
-    staleTime: 5_000,
+    queryKey: ['creative-flow-generation-estimate', project.id, creativeCount],
+    queryFn: () => getCreativeFlowGenerationEstimate(project.id, creativeCount),
+    enabled: Boolean(analysis && !project.renderCampaignId && !project.activeJobType),
+    staleTime: 3_000,
     retry: false,
   })
   const renderCampaignQuery = useQuery({
@@ -654,7 +654,7 @@ function CreativeFlowWorkspaceInner({
         if (project.activeJobType === 'CREATIVE_RENDER' || (restoredReview && index === additions.length - 1)) {
           window.setTimeout(() => {
             const focusIds = [
-              'generateCreatives',
+              'productIntelligence',
               creativeNodeId(post.id),
               ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
             ]
@@ -818,16 +818,20 @@ function CreativeFlowWorkspaceInner({
     }
   }, [blockedByAnother, flow, persistSource, project, running, sourceBusy, updateCachedProject, urlDraft])
 
-  const saveCampaign = useCallback(async () => {
-    if (campaignBusy || anyJobRunning || !analysis) return
+  const generateCampaign = useCallback(async () => {
+    if (campaignBusy || anyJobRunning || blockedByAnother || !analysis || project.renderCampaignId) return
     if (!campaignPlatforms.length) {
       setError('Choose at least one platform for this campaign.')
+      return
+    }
+    if (generationEstimateQuery.data && !generationEstimateQuery.data.canGenerate) {
+      setError(`This campaign needs ${generationEstimateQuery.data.requiredCredits} AI credits, but only ${generationEstimateQuery.data.creditsRemaining} are available.`)
       return
     }
     setCampaignBusy(true)
     setError('')
     try {
-      const next = await saveCreativeFlowCampaignSetup(project.id, {
+      const next = await generateCreativeFlowCampaign(project.id, {
         goal: campaignGoal,
         platforms: campaignPlatforms,
         creativeCount,
@@ -838,11 +842,11 @@ function CreativeFlowWorkspaceInner({
       setCampaignExpanded(false)
       setAdvancedExpanded(false)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Creative Flow could not save this campaign setup.')
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not start this campaign.')
     } finally {
       setCampaignBusy(false)
     }
-  }, [analysis, anyJobRunning, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, project.id, updateCachedProject])
+  }, [analysis, anyJobRunning, blockedByAnother, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, generationEstimateQuery.data, project.id, project.renderCampaignId, updateCachedProject])
 
   const startStrategy = useCallback(async () => {
     if (strategyBusy || anyJobRunning || blockedByAnother) return
@@ -982,7 +986,7 @@ function CreativeFlowWorkspaceInner({
       await queryClient.invalidateQueries({ queryKey: ['creative-flow-render', project.renderCampaignId] })
       window.setTimeout(() => {
         void flow.fitView({
-          nodes: [{ id: 'generateCreatives' }, { id: creativeNodeId(postId) }],
+          nodes: [{ id: 'productIntelligence' }, { id: creativeNodeId(postId) }],
           padding: 0.28,
           duration: 580,
           maxZoom: 1.08,
@@ -1091,7 +1095,7 @@ function CreativeFlowWorkspaceInner({
     setCreativeCount,
     setCreativeStyle,
     setCampaignAudience,
-    saveCampaignSetup: () => void saveCampaign(),
+    generateCampaign: () => void generateCampaign(),
     startStrategy: () => void startStrategy(),
     toggleStrategyConcept: (sequence) => void toggleStrategyConcept(sequence),
     startGeneration: () => void startGeneration(),
@@ -1106,7 +1110,7 @@ function CreativeFlowWorkspaceInner({
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, generateCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
@@ -1118,7 +1122,7 @@ function CreativeFlowWorkspaceInner({
               {running
                 ? 'Analysing product'
                 : strategyRunning
-                  ? 'Planning strategy'
+                  ? 'Preparing campaign'
                   : project.activeJobType === 'CREATIVE_REGENERATE'
                     ? 'Regenerating creative'
                     : renderRunning
