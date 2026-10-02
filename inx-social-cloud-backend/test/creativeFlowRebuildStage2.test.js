@@ -30,17 +30,22 @@ test('Stage 2 uses the agreed motion architecture inside the project workspace',
   assert.match(motion, /ExpressiveMotion/);
 });
 
-test('Stage 2 begins with only product URL, product images and analyse controls', () => {
+test('Stage 2 begins with only product URL, product images and analyse controls then grows real process nodes', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
   assert.match(workspace, /id: 'productUrl'/);
   assert.match(workspace, /id: 'productImages'/);
   assert.match(workspace, /id: 'analyzeProduct'/);
-  assert.match(workspace, /running && !analysis/);
-  assert.match(workspace, /id: 'analysisProcess'/);
+  assert.match(workspace, /const ANALYSIS_STEPS = \[/);
+  assert.match(workspace, /id: 'analysisSources'/);
+  assert.match(workspace, /id: 'analysisEvidence'/);
+  assert.match(workspace, /id: 'analysisMeaning'/);
+  assert.match(workspace, /id: 'analysisBrand'/);
+  assert.match(workspace, /type: 'analysisStep'/);
   assert.match(workspace, /id: 'productIntelligence'/);
   assert.match(workspace, /if \(campaignConfigured\(project\)\)/);
   assert.match(workspace, /if \(project\.workflow\.strategyPlan\)/);
+  assert.doesNotMatch(workspace, /id: 'analysisProcess'/);
 });
 
 test('Stage 2 source nodes are direct controls with friendly URL normalisation and immediate image persistence', () => {
@@ -93,4 +98,21 @@ test('Stage 2 restores workflow nodes and canvas position from persisted project
   assert.match(workspace, /onNodeDragStop/);
   assert.match(workspace, /onMoveEnd/);
   assert.match(hub, /max-w-\[calc\(100vw-1rem\)\]/);
+});
+
+
+test('Stage 2 analysis nodes reveal progressively and converge into Product Intelligence', () => {
+  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
+  const runtime = read('src/services/creativeFlowProjectRuntime.js');
+  const service = read('src/services/creativeFlowService.js');
+
+  assert.match(workspace, /ANALYSIS_STEPS\.slice\(0, visibleStepCount\)/);
+  assert.match(workspace, /source: step\.id[\s\S]*target: 'productIntelligence'/);
+  assert.match(workspace, /BaseEdge/);
+  assert.match(workspace, /strokeWidth: active \? 2\.8 : 2\.1/);
+  assert.match(runtime, /progressTotal: 5/);
+  assert.match(service, /reportAnalysisProgress/);
+  assert.match(service, /Product sources collected and validated/);
+  assert.match(service, /Understanding positioning, audience and product meaning/);
+  assert.match(service, /Mapping brand, logo, colours and visual identity/);
 });

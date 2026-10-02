@@ -1,5 +1,6 @@
 import {
   Background,
+  BaseEdge,
   Controls,
   Handle,
   Position,
@@ -83,7 +84,9 @@ import {
 import { Button } from '../../ui/Button'
 import { CreativeFlowMotionSlot } from './CreativeFlowMotion'
 
-type Stage2Node = Node<Record<string, never>>
+type Stage2NodeData = { analysisStep?: number }
+
+type Stage2Node = Node<Stage2NodeData>
 type Stage2Edge = Edge<{ active?: boolean; complete?: boolean }, 'motion'>
 
 type LocalPreview = {
@@ -202,18 +205,92 @@ function renderFinished(project: CreativeFlowProject) {
   ].includes(project.currentStage)
 }
 
+const ANALYSIS_STEPS = [
+  {
+    id: 'analysisSources',
+    eyebrow: 'Source collection',
+    title: 'Collect product sources',
+    description: 'Read the website, uploads and references attached to this project.',
+  },
+  {
+    id: 'analysisEvidence',
+    eyebrow: 'Evidence extraction',
+    title: 'Extract verified evidence',
+    description: 'Separate supported product facts and claims from unsupported assumptions.',
+  },
+  {
+    id: 'analysisMeaning',
+    eyebrow: 'Product understanding',
+    title: 'Understand positioning',
+    description: 'Interpret audience, product meaning, positioning and claim boundaries.',
+  },
+  {
+    id: 'analysisBrand',
+    eyebrow: 'Visual intelligence',
+    title: 'Map brand & visuals',
+    description: 'Identify logo, colours, product visuals and usable brand signals.',
+  },
+] as const
+
+function analysisStepCount(project: CreativeFlowProject) {
+  if (project.workflow.analysis) return ANALYSIS_STEPS.length
+  const visible = project.activeJobType === 'PRODUCT_ANALYSIS'
+    || ['PRODUCT_ANALYSIS_RUNNING', 'PRODUCT_ANALYSIS_FAILED'].includes(project.currentStage)
+  if (!visible) return 0
+  return Math.max(1, Math.min(ANALYSIS_STEPS.length, Number(project.progress.current || 1)))
+}
+
+function analysisStepPosition(project: CreativeFlowProject, index: number) {
+  const base = project.workflow.canvas.positions.analyzeProduct
+  return {
+    x: base.x + 360,
+    y: base.y - 255 + (index * 170),
+  }
+}
+
+function productIntelligencePosition(project: CreativeFlowProject) {
+  const base = project.workflow.canvas.positions.analyzeProduct
+  const saved = project.workflow.canvas.positions.productIntelligence
+  return {
+    x: Math.max(saved.x, base.x + 820),
+    y: Math.min(saved.y, base.y - 60),
+  }
+}
+
+function creativeStrategyPosition(project: CreativeFlowProject) {
+  const product = productIntelligencePosition(project)
+  const saved = project.workflow.canvas.positions.creativeStrategy
+  return {
+    x: Math.max(saved.x, product.x + 500),
+    y: saved.y,
+  }
+}
+
+function generateCreativesPosition(project: CreativeFlowProject) {
+  const strategy = creativeStrategyPosition(project)
+  const saved = project.workflow.canvas.positions.generateCreatives
+  return {
+    x: Math.max(saved.x, strategy.x + 470),
+    y: saved.y,
+  }
+}
+
 function focusNodeIds(project: CreativeFlowProject) {
+  const processIds = ANALYSIS_STEPS.slice(0, analysisStepCount(project)).map((step) => step.id)
   if (project.activeJobType === 'PRODUCT_ANALYSIS' || project.currentStage === 'PRODUCT_ANALYSIS_RUNNING') {
-    return ['productUrl', 'productImages', 'analyzeProduct', 'analysisProcess']
+    return ['productUrl', 'productImages', 'analyzeProduct', ...processIds]
   }
   if (!project.workflow.analysis) {
-    return ['productUrl', 'productImages', 'analyzeProduct']
+    return ['productUrl', 'productImages', 'analyzeProduct', ...processIds]
+  }
+  if (project.currentStage === 'PRODUCT_READY' && !campaignConfigured(project)) {
+    return ['analyzeProduct', ...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
   }
   if (
     project.activeJobType === 'STRATEGY_PLANNING' ||
     ['CAMPAIGN_READY', 'STRATEGY_PLANNING', 'STRATEGY_FAILED'].includes(project.currentStage)
   ) {
-    return ['campaignSetup', 'creativeStrategy']
+    return ['productIntelligence', 'creativeStrategy']
   }
   if (project.workflow.review.revealedPostIds.length) {
     return [
@@ -232,7 +309,7 @@ function focusNodeIds(project: CreativeFlowProject) {
   ) {
     return ['creativeStrategy', 'generateCreatives']
   }
-  return ['productIntelligence', 'campaignSetup']
+  return [...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
 }
 
 function creativeNodeId(postId: string) {
@@ -240,7 +317,7 @@ function creativeNodeId(postId: string) {
 }
 
 function creativeNodePosition(project: CreativeFlowProject, _postId: string, index: number) {
-  const base = project.workflow.canvas.positions.generateCreatives
+  const base = generateCreativesPosition(project)
   const column = index % 4
   const row = Math.floor(index / 4)
   return {
@@ -250,7 +327,7 @@ function creativeNodePosition(project: CreativeFlowProject, _postId: string, ind
 }
 
 function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
-  const base = project.workflow.canvas.positions.generateCreatives
+  const base = generateCreativesPosition(project)
   const columns = Math.max(1, Math.min(4, Math.max(creativeCount, 1)))
   return {
     x: base.x + 430 + (columns * 340) + 390,
@@ -318,77 +395,124 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
   const positions = project.workflow.canvas.positions
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const analysis = project.workflow.analysis
+  const analysisReady = Boolean(analysis && !running)
   const nodes: Stage2Node[] = [
     { id: 'productUrl', type: 'productUrl', position: positions.productUrl, data: {}, draggable: true },
     { id: 'productImages', type: 'productImages', position: positions.productImages, data: {}, draggable: true },
     { id: 'analyzeProduct', type: 'analyzeProduct', position: positions.analyzeProduct, data: {}, draggable: true },
   ]
-  if (running && !analysis) {
-    nodes.push({ id: 'analysisProcess', type: 'analysisProcess', position: positions.productIntelligence, data: {}, draggable: false })
-  } else if (analysis) {
-    nodes.push({ id: 'productIntelligence', type: 'productIntelligence', position: positions.productIntelligence, data: {}, draggable: true })
-    nodes.push({ id: 'campaignSetup', type: 'campaignSetup', position: positions.campaignSetup, data: {}, draggable: true })
+
+  const visibleStepCount = analysisStepCount(project)
+  ANALYSIS_STEPS.slice(0, visibleStepCount).forEach((step, index) => {
+    nodes.push({
+      id: step.id,
+      type: 'analysisStep',
+      position: analysisStepPosition(project, index),
+      data: { analysisStep: index },
+      draggable: false,
+    })
+  })
+
+  if (analysisReady) {
+    nodes.push({
+      id: 'productIntelligence',
+      type: 'productIntelligence',
+      position: productIntelligencePosition(project),
+      data: {},
+      draggable: true,
+    })
     if (campaignConfigured(project)) {
-      nodes.push({ id: 'creativeStrategy', type: 'creativeStrategy', position: positions.creativeStrategy, data: {}, draggable: true })
+      nodes.push({
+        id: 'creativeStrategy',
+        type: 'creativeStrategy',
+        position: creativeStrategyPosition(project),
+        data: {},
+        draggable: true,
+      })
     }
     if (project.workflow.strategyPlan) {
-      nodes.push({ id: 'generateCreatives', type: 'generateCreatives', position: positions.generateCreatives, data: {}, draggable: true })
+      nodes.push({
+        id: 'generateCreatives',
+        type: 'generateCreatives',
+        position: generateCreativesPosition(project),
+        data: {},
+        draggable: true,
+      })
     }
   }
+
   return nodes
 }
 
 function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const analysis = project.workflow.analysis
-  const sourceActive = running
+  const analysisReady = Boolean(analysis && !running)
+  const visibleStepCount = analysisStepCount(project)
+  const currentProgress = Number(project.progress.current || 0)
   const edges: Stage2Edge[] = [
     {
       id: 'url-analyze',
       source: 'productUrl',
       target: 'analyzeProduct',
       type: 'motion',
-      data: { active: sourceActive, complete: Boolean(analysis) },
+      data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
     {
       id: 'images-analyze',
       source: 'productImages',
       target: 'analyzeProduct',
       type: 'motion',
-      data: { active: sourceActive, complete: Boolean(analysis) },
+      data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
   ]
-  if (running && !analysis) {
+
+  if (visibleStepCount > 0) {
+    const first = ANALYSIS_STEPS[0]
     edges.push({
-      id: 'analyze-process',
+      id: 'analyze-analysis-sources',
       source: 'analyzeProduct',
-      target: 'analysisProcess',
+      target: first.id,
       type: 'motion',
-      data: { active: true, complete: false },
+      data: { active: running && currentProgress <= 1, complete: analysisReady || currentProgress > 1 },
     })
-  } else if (analysis) {
-    edges.push({
-      id: 'analyze-intelligence',
-      source: 'analyzeProduct',
-      target: 'productIntelligence',
-      type: 'motion',
-      data: { active: false, complete: true },
+
+    for (let index = 1; index < visibleStepCount; index += 1) {
+      const previous = ANALYSIS_STEPS[index - 1]
+      const step = ANALYSIS_STEPS[index]
+      edges.push({
+        id: `${previous.id}-${step.id}`,
+        source: previous.id,
+        target: step.id,
+        type: 'motion',
+        data: {
+          active: running && currentProgress === index + 1,
+          complete: analysisReady || currentProgress > index + 1,
+        },
+      })
+    }
+  }
+
+  if (analysisReady) {
+    ANALYSIS_STEPS.forEach((step) => {
+      edges.push({
+        id: `${step.id}-intelligence`,
+        source: step.id,
+        target: 'productIntelligence',
+        type: 'motion',
+        data: { active: false, complete: true },
+      })
     })
+
     const campaignReady = campaignConfigured(project)
     const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
     const strategyReady = Boolean(project.workflow.strategyPlan)
     const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
-    edges.push({
-      id: 'intelligence-campaign',
-      source: 'productIntelligence',
-      target: 'campaignSetup',
-      type: 'motion',
-      data: { active: !campaignReady, complete: campaignReady },
-    })
+
     if (campaignReady) {
       edges.push({
-        id: 'campaign-strategy',
-        source: 'campaignSetup',
+        id: 'intelligence-strategy',
+        source: 'productIntelligence',
         target: 'creativeStrategy',
         type: 'motion',
         data: { active: strategyRunning, complete: strategyReady },
@@ -404,6 +528,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       })
     }
   }
+
   return edges
 }
 
@@ -411,9 +536,8 @@ const nodeTypes = {
   productUrl: ProductUrlNode,
   productImages: ProductImagesNode,
   analyzeProduct: AnalyzeProductNode,
-  analysisProcess: AnalysisProcessNode,
+  analysisStep: AnalysisStepNode,
   productIntelligence: ProductIntelligenceNode,
-  campaignSetup: CampaignSetupNode,
   creativeStrategy: CreativeStrategyNode,
   generateCreatives: GenerateCreativesNode,
   creativeAsset: CreativeAssetNode,
@@ -485,7 +609,11 @@ function CreativeFlowWorkspaceInner({
     queryFn: () => getCreativeFlowProject(initialProject.id),
     initialData: initialProject,
     staleTime: 1_000,
-    refetchInterval: (query) => query.state.data?.activeJobType ? 1_800 : false,
+    refetchInterval: (query) => query.state.data?.activeJobType === 'PRODUCT_ANALYSIS'
+      ? 650
+      : query.state.data?.activeJobType
+        ? 1_500
+        : false,
   })
   const project = projectQuery.data
   useEffect(() => {
@@ -983,8 +1111,7 @@ function CreativeFlowWorkspaceInner({
           productUrl: byId.get('productUrl'),
           productImages: byId.get('productImages'),
           analyzeProduct: byId.get('analyzeProduct'),
-          productIntelligence: byId.get('productIntelligence') || byId.get('analysisProcess'),
-          campaignSetup: byId.get('campaignSetup'),
+          productIntelligence: byId.get('productIntelligence'),
           creativeStrategy: byId.get('creativeStrategy'),
           generateCreatives: byId.get('generateCreatives'),
         },
@@ -1263,75 +1390,51 @@ function AnalyzeProductNode(props: NodeProps) {
   </>
 }
 
-function AnalysisProcessNode(props: NodeProps) {
-  void props
+function AnalysisStepNode(props: NodeProps) {
   const { project } = useWorkspace()
+  const stepIndex = Math.max(0, Math.min(ANALYSIS_STEPS.length - 1, Number((props.data as Stage2NodeData | undefined)?.analysisStep || 0)))
+  const step = ANALYSIS_STEPS[stepIndex]
+  const complete = Boolean(project.workflow.analysis) || Number(project.progress.current || 0) > stepIndex + 1
+  const working = !project.workflow.analysis
+    && project.activeJobType === 'PRODUCT_ANALYSIS'
+    && Number(project.progress.current || 0) === stepIndex + 1
+  const failed = project.currentStage === 'PRODUCT_ANALYSIS_FAILED'
+    && Number(project.progress.current || 0) === stepIndex + 1
   const ref = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const ctx = gsap.context(() => {
-      gsap.fromTo(ref.current, { scale: 0.72, opacity: 0, x: -24 }, { scale: 1, opacity: 1, x: 0, duration: 0.65, ease: 'back.out(1.7)' })
+      gsap.fromTo(
+        ref.current,
+        { scale: 0.74, opacity: 0, x: -26 },
+        { scale: 1, opacity: 1, x: 0, duration: 0.58, delay: stepIndex * 0.11, ease: 'back.out(1.7)' },
+      )
     }, ref)
     return () => ctx.revert()
-  }, [])
+  }, [stepIndex])
 
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Left} type="target" />
-    <NodeShell className="w-[300px] border-brand-cyan/30 p-4 shadow-[0_26px_80px_rgba(20,184,166,.16)]">
-      <div className="flex items-center gap-4">
-        <CreativeFlowMotionSlot className="size-20 shrink-0" state="working" />
-        <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Product Intelligence</span><h4 className="mt-1 text-[12px] font-semibold">Understanding your product…</h4><p className="mt-1 text-[8px] leading-4 text-text-muted">{project.progress.label || 'Reading website, visuals and brand evidence.'}</p></div>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Right} type="source" />
+    <NodeShell className={`w-[300px] overflow-hidden ${working ? 'border-brand-cyan/35 shadow-[0_24px_70px_rgba(20,184,166,.15)]' : complete ? 'border-brand-green/25' : failed ? 'border-red-200' : ''}`}>
+      <div className="flex items-center gap-3 p-4">
+        <CreativeFlowMotionSlot className="size-14 shrink-0" state={working ? 'working' : complete ? 'success' : failed ? 'error' : 'idle'} />
+        <div className="min-w-0 flex-1">
+          <span className={`block text-[7px] font-bold uppercase tracking-[.14em] ${complete ? 'text-brand-green' : 'text-brand-cyan'}`}>{step.eyebrow}</span>
+          <strong className="mt-1 block text-[10px]">{step.title}</strong>
+          <p className="mt-1 text-[7px] leading-4 text-text-muted">{working ? project.progress.label || step.description : step.description}</p>
+        </div>
+        <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-[8px] font-bold ${complete ? 'border-brand-green/20 bg-brand-green/[.06] text-brand-green' : working ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : 'border-border-soft bg-slate-50 text-text-soft'}`}>{stepIndex + 1}</span>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(12, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
     </NodeShell>
   </div>
 }
 
 function ProductIntelligenceNode(props: NodeProps) {
   void props
-  const { analysis, project } = useWorkspace()
-  const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const ctx = gsap.context(() => {
-      const timeline = gsap.timeline()
-      timeline.fromTo(ref.current, { scale: 0.74, opacity: 0, x: -30 }, { scale: 1, opacity: 1, x: 0, duration: 0.72, ease: 'back.out(1.8)' })
-      timeline.fromTo(ref.current?.querySelectorAll('[data-intelligence-chip]') || [], { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.34, stagger: 0.07 }, '-=.22')
-    }, ref)
-    return () => ctx.revert()
-  }, [])
-
-  if (!analysis) return null
-  const source = analysis.sourceAnalysis
-  const brand = analysis.brandPack
-  return <div ref={ref}>
-    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
-    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Right} type="source" />
-    <NodeShell className="w-[380px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.11)]">
-      <div className="border-b border-border-soft bg-[linear-gradient(135deg,rgba(240,253,250,.8),rgba(255,255,255,1))] p-4">
-        <div className="flex items-center gap-3">
-          <CreativeFlowMotionSlot className="size-16 shrink-0" state="success" />
-          <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-green">Product Intelligence</span><h4 className="mt-1 truncate text-[13px] font-semibold">{source.productName || brand.brandName || project.name}</h4><p className="mt-1 line-clamp-2 text-[8px] leading-4 text-text-muted">{source.summary || 'Product and brand sources analysed.'}</p></div>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="grid grid-cols-3 gap-2">
-          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Claims</span><strong className="mt-1 block text-[12px]">{source.verifiedClaims.length}</strong></div>
-          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">References</span><strong className="mt-1 block text-[12px]">{analysis.analysedReferences.length}</strong></div>
-          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Confidence</span><strong className="mt-1 block text-[10px] capitalize">{brand.confidence}</strong></div>
-        </div>
-
-        {brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2" data-intelligence-chip><span className="text-[7px] uppercase tracking-[.1em] text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10 shadow-sm" key={color} style={{ backgroundColor: color }} />)}</div></div>}
-        {analysis.analysedUrl?.url && <a className="nodrag mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3 shrink-0" /><span className="truncate">{displayDomain(analysis.analysedUrl.url)}</span><ExternalLink className="size-2.5 shrink-0" /></a>}
-        <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5" data-intelligence-chip><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Sparkles className="size-3" />Product intelligence saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">This evidence remains attached to the project and now feeds the Campaign Setup node.</p></div>
-      </div>
-    </NodeShell>
-  </div>
-}
-
-function CampaignSetupNode(props: NodeProps) {
-  void props
   const {
+    analysis,
     project,
     campaignExpanded,
     advancedExpanded,
@@ -1350,9 +1453,9 @@ function CampaignSetupNode(props: NodeProps) {
     setCampaignAudience,
     saveCampaignSetup,
   } = useWorkspace()
+  const ref = useRef<HTMLDivElement>(null)
   const ready = campaignConfigured(project)
   const locked = Boolean(project.activeJobType)
-  const ref = useRef<HTMLDivElement>(null)
   const platforms = ['Instagram', 'Facebook', 'X', 'LinkedIn', 'TikTok', 'Threads', 'Bluesky', 'Pinterest']
   const goals = ['AI Recommended', 'Sales', 'Traffic', 'Awareness', 'Product launch']
   const styles = ['AI Recommended', 'Performance ads', 'Minimal', 'Lifestyle', 'Editorial / infographic']
@@ -1360,29 +1463,62 @@ function CampaignSetupNode(props: NodeProps) {
   useEffect(() => {
     if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const ctx = gsap.context(() => {
-      gsap.fromTo(ref.current, { opacity: 0, x: -34, scale: 0.86 }, { opacity: 1, x: 0, scale: 1, duration: 0.68, ease: 'back.out(1.65)' })
+      const timeline = gsap.timeline()
+      timeline.fromTo(ref.current, { scale: 0.74, opacity: 0, x: -30 }, { scale: 1, opacity: 1, x: 0, duration: 0.72, delay: 0.42, ease: 'back.out(1.8)' })
+      timeline.fromTo(ref.current?.querySelectorAll('[data-intelligence-chip]') || [], { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.34, stagger: 0.07 }, '-=.22')
     }, ref)
     return () => ctx.revert()
   }, [])
 
+  if (!analysis) return null
+  const source = analysis.sourceAnalysis
+  const brand = analysis.brandPack
+
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
     <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Right} type="source" />
-    <NodeShell className={`w-[360px] overflow-hidden transition-shadow ${campaignExpanded ? 'border-brand-purple/25 shadow-[0_26px_80px_rgba(139,92,246,.13)]' : ready ? 'border-brand-green/25' : 'border-brand-purple/20'}`}>
-      <button className="flex w-full items-center gap-3 p-4 text-left" disabled={locked} onClick={() => setCampaignExpanded(!campaignExpanded)} type="button">
-        <CreativeFlowMotionSlot className="size-12 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
+    <NodeShell className={`w-[430px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.11)] ${campaignExpanded ? 'shadow-[0_28px_90px_rgba(139,92,246,.13)]' : ''}`}>
+      <div className="border-b border-border-soft bg-[linear-gradient(135deg,rgba(240,253,250,.8),rgba(255,255,255,1))] p-4">
+        <div className="flex items-center gap-3">
+          <CreativeFlowMotionSlot className="size-16 shrink-0" state="success" />
+          <div className="min-w-0">
+            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-green">Product Intelligence</span>
+            <h4 className="mt-1 truncate text-[13px] font-semibold">{source.productName || brand.brandName || project.name}</h4>
+            <p className="mt-1 line-clamp-2 text-[8px] leading-4 text-text-muted">{source.summary || 'Product and brand sources analysed.'}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4">
+        <div className="grid grid-cols-3 gap-2">
+          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Claims</span><strong className="mt-1 block text-[12px]">{source.verifiedClaims.length}</strong></div>
+          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">References</span><strong className="mt-1 block text-[12px]">{analysis.analysedReferences.length}</strong></div>
+          <div data-intelligence-chip className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="block text-[7px] uppercase tracking-[.1em] text-text-soft">Confidence</span><strong className="mt-1 block text-[10px] capitalize">{brand.confidence}</strong></div>
+        </div>
+
+        {brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2" data-intelligence-chip><span className="text-[7px] uppercase tracking-[.1em] text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10 shadow-sm" key={color} style={{ backgroundColor: color }} />)}</div></div>}
+        {analysis.analysedUrl?.url && <a className="nodrag mt-3 inline-flex max-w-full items-center gap-1.5 truncate text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3 shrink-0" /><span className="truncate">{displayDomain(analysis.analysedUrl.url)}</span><ExternalLink className="size-2.5 shrink-0" /></a>}
+      </div>
+
+      <button
+        className={`nodrag flex w-full items-center gap-3 border-t border-border-soft px-4 py-3.5 text-left transition ${campaignExpanded ? 'bg-brand-purple/[.035]' : 'bg-slate-50/65 hover:bg-slate-50'}`}
+        disabled={locked}
+        onClick={() => setCampaignExpanded(!campaignExpanded)}
+        type="button"
+      >
+        <CreativeFlowMotionSlot className="size-11 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
         <span className="min-w-0 flex-1">
           <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign Setup</span>
-          <strong className="mt-1 block truncate text-[11px]">{ready ? `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}` : 'Shape the campaign'}</strong>
-          <span className="mt-0.5 block truncate text-[8px] text-text-soft">{campaignGoal} · {creativeStyle}</span>
+          <strong className="mt-0.5 block truncate text-[10px]">{ready ? `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}` : 'Set up this campaign'}</strong>
+          <span className="mt-0.5 block truncate text-[7px] text-text-soft">{campaignGoal} · {creativeStyle}</span>
         </span>
         {ready && !campaignExpanded
           ? <span className="grid size-7 place-items-center rounded-full bg-brand-green/[.08] text-brand-green"><Check className="size-3.5" /></span>
           : <ChevronDown className={`size-4 text-text-soft transition-transform ${campaignExpanded ? 'rotate-180' : ''}`} />}
       </button>
 
-      {campaignExpanded && <AnimatedExpand id="campaign-setup">
-        <div className="nodrag border-t border-border-soft p-4">
+      {campaignExpanded && <AnimatedExpand id="campaign-setup-inline">
+        <div className="nodrag border-t border-border-soft bg-white p-4">
           <div>
             <span className="text-[8px] font-semibold text-text-muted">Campaign goal</span>
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -1410,7 +1546,7 @@ function CampaignSetupNode(props: NodeProps) {
 
           <button className="mt-4 flex w-full items-center justify-between rounded-xl border border-border-soft bg-slate-50 px-3 py-2 text-left" onClick={() => setAdvancedExpanded(!advancedExpanded)} type="button"><span><strong className="block text-[8px]">Advanced options</strong><span className="mt-0.5 block text-[7px] text-text-soft">Optional style and audience direction</span></span><ChevronDown className={`size-3.5 text-text-soft transition-transform ${advancedExpanded ? 'rotate-180' : ''}`} /></button>
 
-          {advancedExpanded && <AnimatedExpand id="campaign-advanced">
+          {advancedExpanded && <AnimatedExpand id="campaign-advanced-inline">
             <div className="mt-3 space-y-3 rounded-xl border border-border-soft bg-slate-50/70 p-3">
               <label className="block"><span className="text-[8px] font-semibold text-text-muted">Creative style</span><select className="mt-1.5 min-h-9 w-full rounded-lg border border-border-soft bg-white px-2.5 text-[8px] outline-none focus:border-brand-purple/40" onChange={(event) => setCreativeStyle(event.target.value)} value={creativeStyle}>{styles.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
               <label className="block"><span className="text-[8px] font-semibold text-text-muted">Audience direction</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-lg border border-border-soft bg-white p-2.5 text-[8px] leading-4 outline-none focus:border-brand-purple/40" maxLength={500} onChange={(event) => setCampaignAudience(event.target.value)} placeholder="Optional — leave blank and Creative Flow will infer from Product Intelligence." value={campaignAudience} /></label>
@@ -1418,7 +1554,7 @@ function CampaignSetupNode(props: NodeProps) {
           </AnimatedExpand>}
 
           <Button className="mt-4 w-full" disabled={campaignBusy || locked || !campaignPlatforms.length} onClick={saveCampaignSetup} size="sm" variant="primary">{campaignBusy ? <Loader2 className="size-3 animate-spin" /> : ready ? <Check className="size-3" /> : <Target className="size-3" />}{ready ? 'Update campaign setup' : 'Save campaign setup'}</Button>
-          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Campaign setup saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">The strategy node is connected and can now plan the campaign.</p></div>}
+          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Campaign setup saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">Creative Strategy can now grow from this same Product Intelligence node.</p></div>}
         </div>
       </AnimatedExpand>}
     </NodeShell>
@@ -1757,7 +1893,6 @@ function ScheduleCampaignNode(props: NodeProps) {
 
 function MotionEdge(props: EdgeProps<Stage2Edge>) {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props
-  const pathRef = useRef<SVGPathElement>(null)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -1769,25 +1904,32 @@ function MotionEdge(props: EdgeProps<Stage2Edge>) {
   })
   const active = Boolean(data?.active)
   const complete = Boolean(data?.complete)
+  const stroke = complete ? 'rgba(34,197,94,.86)' : active ? 'rgba(20,184,166,.95)' : 'rgba(100,116,139,.68)'
 
-  useEffect(() => {
-    if (!pathRef.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const path = pathRef.current
-    const length = path.getTotalLength()
-    const ctx = gsap.context(() => {
-      gsap.fromTo(path, { strokeDasharray: length, strokeDashoffset: length }, { strokeDashoffset: 0, duration: 0.62, ease: 'power2.out' })
-      if (active) {
-        gsap.to(path, { opacity: 0.62, duration: 0.8, repeat: -1, yoyo: true, ease: 'sine.inOut' })
-      }
-    }, path)
-    return () => ctx.revert()
-  }, [active, edgePath])
-
-  const stroke = complete ? 'rgba(34,197,94,.72)' : active ? 'rgba(20,184,166,.82)' : 'rgba(148,163,184,.58)'
   return <>
-    <path d={edgePath} fill="none" ref={pathRef} stroke={stroke} strokeLinecap="round" strokeWidth={active ? 2.2 : 1.6} />
-    {active && <circle fill="rgba(20,184,166,.95)" r="3.2">
-      <animateMotion dur="1.35s" path={edgePath} repeatCount="indefinite" />
-    </circle>}
+    <BaseEdge
+      path={edgePath}
+      style={{
+        stroke,
+        strokeWidth: active ? 2.8 : 2.1,
+        strokeLinecap: 'round',
+      }}
+    />
+    {active && <>
+      <path
+        d={edgePath}
+        fill="none"
+        pointerEvents="none"
+        stroke="rgba(20,184,166,.24)"
+        strokeDasharray="7 9"
+        strokeLinecap="round"
+        strokeWidth="6"
+      >
+        <animate attributeName="stroke-dashoffset" dur="0.9s" from="32" repeatCount="indefinite" to="0" />
+      </path>
+      <circle fill="rgba(20,184,166,.98)" r="4">
+        <animateMotion dur="1.25s" path={edgePath} repeatCount="indefinite" />
+      </circle>
+    </>}
   </>
 }
