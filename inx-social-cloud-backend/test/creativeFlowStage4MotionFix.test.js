@@ -11,7 +11,7 @@ test('restored Stage 3 projects auto-focus the Stage 4 strategy node on open', (
 
   assert.match(workspace, /function focusNodeIds/);
   assert.match(workspace, /\['CAMPAIGN_READY', 'STRATEGY_PLANNING', 'STRATEGY_FAILED'\]/);
-  assert.match(workspace, /return \['campaignSetup', 'creativeStrategy'\]/);
+  assert.match(workspace, /return \['productIntelligence', 'creativeStrategy'\]/);
   assert.match(workspace, /const lastFocusKeyRef = useRef\(''\)/);
   assert.match(workspace, /flow\.fitView/);
   assert.match(workspace, /duration: 760/);
