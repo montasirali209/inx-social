@@ -36,6 +36,7 @@ router.post('/creative-flow/projects/:projectId/handoff', controller.handoffCrea
 router.patch('/creative-flow/projects/:projectId/canvas', controller.saveCreativeFlowProjectCanvas);
 router.patch('/creative-flow/projects/:projectId', controller.renameCreativeFlowProject);
 router.delete('/creative-flow/projects/:projectId', controller.archiveCreativeFlowProject);
+router.post('/creative-flow/projects/:projectId/restore', controller.restoreCreativeFlowProject);
 router.post('/creative-flow/analyze', controller.analyzeCreativeFlow);
 router.post('/creative-flow/strategy', controller.planCreativeFlow);
 router.post('/creative-flow/render', controller.startCreativeFlowRender);
