@@ -760,6 +760,9 @@ async function openAIImage(prompt, refs, options = {}) {
   const base = String(env.openaiImage.baseUrl).replace(/\/$/, '');
   const model = env.openaiImage.model || 'gpt-image-2';
   const size = sizeForRatio(options.aspectRatio);
+  const quality = ['low', 'medium', 'high'].includes(String(options.quality || '').toLowerCase())
+    ? String(options.quality).toLowerCase()
+    : 'medium';
   try {
     let response;
     if (refs.length) {
@@ -767,7 +770,7 @@ async function openAIImage(prompt, refs, options = {}) {
       form.append('model', model);
       form.append('prompt', prompt);
       form.append('size', size);
-      form.append('quality', 'medium');
+      form.append('quality', quality);
       form.append('output_format', 'png');
       refs.filter(asset => String(asset.mimeType || '').startsWith('image/')).slice(0, 4).forEach((asset, index) => {
         const blob = new Blob([asset.data], { type: asset.mimeType || 'image/png' });
@@ -784,7 +787,7 @@ async function openAIImage(prompt, refs, options = {}) {
         model,
         prompt,
         size,
-        quality: 'medium',
+        quality,
         output_format: 'png',
         moderation: 'auto',
         n: 1
@@ -794,7 +797,7 @@ async function openAIImage(prompt, refs, options = {}) {
     if (!encoded) throw new Error('OpenAI returned no image data.');
     const data = Buffer.from(encoded, 'base64');
     if (!data.length || data.length > 16 * 1024 * 1024) throw new Error('The generated image was empty or too large.');
-    return { data, model, size };
+    return { data, model, size, quality };
   } catch (caught) {
     if (caught?.code && String(caught.code).startsWith('OPENAI_IMAGE_')) throw caught;
     const detail = cleanText(caught?.response?.data?.error?.message || caught?.message, 700);
@@ -817,40 +820,64 @@ async function exactBrandOverlay(output, refs, brandLock = {}) {
   const height = Number(metadata.height || 0);
   if (!width || !height) return output;
 
-  const composites = [];
-  const applied = { logo: false, productVisual: false };
-
+  const applied = { logo: false, productVisual: false, safeHeader: false };
   const logoAsset = brandLock.lockLogo
     ? refs.find(asset => asset.referenceKind === 'logo' && asset.data)
     : null;
 
+  // Never paste an official logo over model-generated typography. When an
+  // authoritative logo exists, reserve a deterministic header band and move
+  // the generated artwork below it. This keeps all generated copy visible and
+  // gives the exact logo its own protected composition zone.
+  let workingData = output.data;
+  let bodyTop = 0;
   if (logoAsset) {
     try {
-      const maxWidth = Math.round(width * 0.24);
-      const maxHeight = Math.round(height * 0.10);
+      const headerHeight = Math.max(96, Math.round(height * 0.13));
+      const bodyHeight = Math.max(1, height - headerHeight);
+      const body = await sharp(output.data, { animated: false })
+        .rotate()
+        .resize({ width, height: bodyHeight, fit: 'fill' })
+        .png()
+        .toBuffer();
+
+      const primary = Array.isArray(brandLock.colors) && /^#[0-9A-F]{6}$/i.test(String(brandLock.colors[0] || ''))
+        ? String(brandLock.colors[0])
+        : '#FFFFFF';
+      const safePrimary = /^#(?:[EeFf][0-9A-F]{4}|[Ff]{6})$/i.test(primary) ? '#F8FAFC' : primary;
+      const header = Buffer.from(
+        `<svg width="${width}" height="${headerHeight}" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100%" height="100%" fill="#FFFFFF"/>
+          <rect x="0" y="${headerHeight - Math.max(4, Math.round(headerHeight * 0.035))}" width="100%" height="${Math.max(4, Math.round(headerHeight * 0.035))}" fill="${safePrimary}" opacity="0.82"/>
+        </svg>`
+      );
+      workingData = await sharp({
+        create: { width, height, channels: 4, background: '#FFFFFF' }
+      }).composite([
+        { input: header, left: 0, top: 0 },
+        { input: body, left: 0, top: headerHeight }
+      ]).png().toBuffer();
+      bodyTop = headerHeight;
+
+      const maxWidth = Math.round(width * 0.27);
+      const maxHeight = Math.round(headerHeight * 0.62);
       const logo = await sharp(logoAsset.data, { animated: false })
         .rotate()
         .resize({ width: maxWidth, height: maxHeight, fit: 'inside', withoutEnlargement: true })
         .png()
         .toBuffer();
       const logoMeta = await sharp(logo).metadata();
-      const pad = Math.max(18, Math.round(width * 0.018));
-      const cardWidth = Math.min(width - pad * 2, Number(logoMeta.width || maxWidth) + pad * 2);
-      const cardHeight = Math.min(height - pad * 2, Number(logoMeta.height || maxHeight) + pad * 2);
-      const background = Buffer.from(
-        `<svg width="${cardWidth}" height="${cardHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" rx="${Math.max(14, Math.round(cardHeight * 0.22))}" fill="rgba(255,255,255,0.94)"/></svg>`
-      );
       const left = Math.round(width * 0.045);
-      const top = Math.round(height * 0.04);
-      composites.push({ input: background, left, top });
-      composites.push({
+      const top = Math.max(8, Math.round((headerHeight - Number(logoMeta.height || maxHeight)) / 2));
+      workingData = await sharp(workingData).composite([{
         input: logo,
-        left: left + Math.round((cardWidth - Number(logoMeta.width || 0)) / 2),
-        top: top + Math.round((cardHeight - Number(logoMeta.height || 0)) / 2)
-      });
+        left,
+        top
+      }]).png().toBuffer();
       applied.logo = true;
+      applied.safeHeader = true;
     } catch (_) {
-      // Never fail a paid generation because an optional exact-logo overlay could not be prepared.
+      // Never fail a paid generation because optional exact-logo composition failed.
     }
   }
 
@@ -860,8 +887,9 @@ async function exactBrandOverlay(output, refs, brandLock = {}) {
 
   if (productAsset) {
     try {
-      const maxWidth = Math.round(width * 0.43);
-      const maxHeight = Math.round(height * 0.48);
+      const bodyHeight = Math.max(1, height - bodyTop);
+      const maxWidth = Math.round(width * 0.40);
+      const maxHeight = Math.round(bodyHeight * 0.44);
       const product = await sharp(productAsset.data, { animated: false })
         .rotate()
         .resize({ width: maxWidth, height: maxHeight, fit: 'inside', withoutEnlargement: true })
@@ -869,24 +897,24 @@ async function exactBrandOverlay(output, refs, brandLock = {}) {
         .toBuffer();
       const productMeta = await sharp(product).metadata();
       const pad = Math.max(16, Math.round(width * 0.014));
-      const cardWidth = Number(productMeta.width || maxWidth) + pad * 2;
-      const cardHeight = Number(productMeta.height || maxHeight) + pad * 2;
+      const cardWidth = Math.min(width - pad * 2, Number(productMeta.width || maxWidth) + pad * 2);
+      const cardHeight = Math.min(bodyHeight - pad * 2, Number(productMeta.height || maxHeight) + pad * 2);
       const background = Buffer.from(
         `<svg width="${cardWidth}" height="${cardHeight}" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="${cardWidth - 2}" height="${cardHeight - 2}" rx="${Math.max(16, Math.round(cardHeight * 0.045))}" fill="rgba(255,255,255,0.98)" stroke="rgba(15,23,42,0.18)" stroke-width="2"/></svg>`
       );
       const left = Math.max(pad, width - cardWidth - Math.round(width * 0.045));
-      const top = Math.max(pad, Math.round(height * 0.30));
-      composites.push({ input: background, left, top });
-      composites.push({ input: product, left: left + pad, top: top + pad });
+      const top = Math.max(bodyTop + pad, bodyTop + Math.round(bodyHeight * 0.22));
+      workingData = await sharp(workingData).composite([
+        { input: background, left, top },
+        { input: product, left: left + pad, top: top + pad }
+      ]).png().toBuffer();
       applied.productVisual = true;
     } catch (_) {
-      // Reference is still supplied to the image model even if exact compositing is not possible.
+      // Reference remains available to the OpenAI image model even if exact compositing fails.
     }
   }
 
-  if (!composites.length) return { ...output, brandLockApplied: applied };
-  const data = await sharp(output.data).composite(composites).png().toBuffer();
-  return { ...output, data, brandLockApplied: applied };
+  return { ...output, data: workingData, brandLockApplied: applied };
 }
 
 async function createGenerationRow(userId, input) {
@@ -920,7 +948,7 @@ async function persistImage(userId, generationId, output, input, prompt) {
     checksum,
     prompt,
     customerPrompt: cleanText(input.prompt, 1500),
-    generationChoice: JSON.stringify({ provider: 'openai', model: output.model, quality: 'medium', size: output.size, generationId }),
+    generationChoice: JSON.stringify({ provider: 'openai', model: output.model, quality: output.quality || 'medium', size: output.size, generationId }),
     tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'image-post']),
     data: stored.data,
     storageProvider: stored.storageProvider,
@@ -975,7 +1003,10 @@ async function generateImagePost(userId, input = {}) {
     const websiteRefs = await remoteReferenceAssets(input.referenceUrls);
     const refs = [...websiteRefs, ...uploadedRefs].slice(0, MAX_REFERENCES);
     const prompt = imagePrompt(input);
-    const rendered = await openAIImage(prompt, refs, { aspectRatio: input.aspectRatio || input.brief?.aspectRatio || '4:5' });
+    const rendered = await openAIImage(prompt, refs, {
+      aspectRatio: input.aspectRatio || input.brief?.aspectRatio || '4:5',
+      quality: input.quality || 'medium'
+    });
     const output = await exactBrandOverlay(rendered, refs, input.brandLock);
     const asset = await persistImage(userId, generationId, output, input, prompt);
     await credits.complete(userId, generationId, IMAGE_CREDITS);
