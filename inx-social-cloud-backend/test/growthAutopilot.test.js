@@ -61,7 +61,7 @@ test('Daily editorial lane cannot be consumed by a non-article strategy decision
   assert.match(strategy, /Do not copy, closely paraphrase, or spin another publisher article/);
 });
 
-test('Growth Autopilot defaults to Terra and supports timed cost-control pauses', () => {
+test('Growth Autopilot defaults to Terra and uses persistent Start Stop controls', () => {
   const service = read('src/services/growthAutopilotService.js');
   const controller = read('src/controllers/growthAutopilotController.js');
   const html = read('public/index.html');
@@ -70,21 +70,19 @@ test('Growth Autopilot defaults to Terra and supports timed cost-control pauses'
   assert.match(service, /TERRA: 'gpt-5\.6-terra'/);
   assert.match(service, /SOL: 'gpt-5\.6-sol'/);
   assert.match(service, /aiModel: AUTOPILOT_MODELS\.TERRA/);
-  assert.match(service, /pauseUntil: null/);
-  assert.match(service, /isTemporarilyPaused/);
-  assert.match(service, /isAutopilotActive/);
-  assert.match(service, /reason: config\.enabled === false \? 'disabled' : 'temporarily_paused'/);
-  assert.match(service, /AUTOPILOT_PAUSED_UNTIL/);
-  assert.match(service, /AUTOPILOT_MODEL_CHANGED/);
-  assert.match(controller, /gpt-5\.6-terra/);
-  assert.match(controller, /gpt-5\.6-sol/);
-  assert.match(controller, /pauseUntil/);
-  assert.match(html, /id="growthAutopilotModel"/);
-  assert.match(html, /id="growthAutopilotPauseDuration"/);
-  assert.match(js, /updateGrowthAutopilotModel/);
-  assert.match(js, /const pauseUntil=new Date/);
+  assert.match(service, /configVersion: 12/);
+  assert.match(service, /function isAutopilotActive\(config\)/);
+  assert.match(service, /reason: 'disabled'/);
+  assert.doesNotMatch(service, /AUTOPILOT_PAUSED_UNTIL/);
+  assert.doesNotMatch(controller, /pauseUntil/);
+  assert.doesNotMatch(html, /growthAutopilotPauseDuration/);
+  assert.match(html, /id="growthAutopilotStartBtn"/);
+  assert.match(html, /id="growthAutopilotStopBtn"/);
+  assert.match(html, /Run manually/);
+  assert.match(js, /setGrowthAutopilotEnabled/);
+  assert.match(js, /JSON\.stringify\(\{enabled:Boolean\(enabled\)\}\)/);
+  assert.doesNotMatch(js, /const pauseUntil=new Date/);
 });
-
 test('Selected Autopilot model is routed through editorial, authority and optimisation AI work', () => {
   const autopilot = read('src/services/growthAutopilotService.js');
   const strategy = read('src/services/growthStrategyService.js');
@@ -206,7 +204,7 @@ test('Growth admin defaults to an autopilot dashboard and hides manual tools und
   assert.match(html, /Editorial radar/);
   assert.match(html, /Every 6h/);
   assert.match(js, /loadGrowthAutopilotStatus/);
-  assert.match(js, /toggleGrowthAutopilot/);
+  assert.match(js, /setGrowthAutopilotEnabled/);
   assert.match(js, /runGrowthAutopilotNow/);
 });
 
