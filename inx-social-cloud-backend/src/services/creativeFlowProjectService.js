@@ -167,14 +167,22 @@ function projectView(project) {
 }
 
 async function listProjects(userId) {
-  const projects = await prisma.creativeFlowProject.findMany({
-    where: { userId, archivedAt: null },
-    orderBy: [{ activeJobType: 'desc' }, { updatedAt: 'desc' }],
-    take: 100
-  });
+  const [projects, archivedProjects] = await Promise.all([
+    prisma.creativeFlowProject.findMany({
+      where: { userId, archivedAt: null },
+      orderBy: [{ activeJobType: 'desc' }, { updatedAt: 'desc' }],
+      take: 100
+    }),
+    prisma.creativeFlowProject.findMany({
+      where: { userId, archivedAt: { not: null } },
+      orderBy: { archivedAt: 'desc' },
+      take: 50
+    })
+  ]);
   const active = projects.find(project => Boolean(project.activeJobType)) || null;
   return {
     projects: projects.map(projectView),
+    archivedProjects: archivedProjects.map(projectView),
     activeProject: projectView(active)
   };
 }
@@ -258,17 +266,27 @@ async function reconcileProjectState(userId, projectId, options = {}) {
         workflowChanged = true;
       }
 
-      const revealed = workflow.review.revealedPostIds.filter(id => validIds.has(id));
-      if (revealed.length !== workflow.review.revealedPostIds.length) {
+      const persistedReveal = workflow.review.revealedPostIds.filter(id => validIds.has(id));
+      const revealed = campaign.status === 'GENERATING_IMAGES'
+        ? persistedReveal
+        : imagePosts.map(post => post.id);
+      if (
+        revealed.length !== workflow.review.revealedPostIds.length
+        || revealed.some((id, index) => id !== workflow.review.revealedPostIds[index])
+      ) {
         workflow.review.revealedPostIds = revealed;
         workflowChanged = true;
       }
 
-      const positions = Object.fromEntries(
-        Object.entries(workflow.canvas.creativePositions || {}).filter(([id]) => validIds.has(id))
-      );
-      if (Object.keys(positions).length !== Object.keys(workflow.canvas.creativePositions || {}).length) {
-        workflow.canvas.creativePositions = positions;
+      // Stage 6 review nodes use a deterministic fixed graph. Discard Stage 5
+      // persisted creative/schedule positions so old projects cannot reopen with
+      // overlapping or user-moved final nodes.
+      if (Object.keys(workflow.canvas.creativePositions || {}).length) {
+        workflow.canvas.creativePositions = {};
+        workflowChanged = true;
+      }
+      if (workflow.canvas.schedulePosition) {
+        workflow.canvas.schedulePosition = null;
         workflowChanged = true;
       }
 
@@ -383,6 +401,25 @@ async function archiveProject(userId, projectId) {
     data: { archivedAt: new Date(), status: 'ARCHIVED' }
   });
   return { ok: true };
+}
+
+async function restoreProject(userId, projectId) {
+  const project = await prisma.creativeFlowProject.findFirst({
+    where: { id: String(projectId), userId, archivedAt: { not: null } }
+  });
+  if (!project) {
+    throw publicError('Archived Creative Flow project not found.', 'CREATIVE_FLOW_ARCHIVED_PROJECT_NOT_FOUND', 404);
+  }
+  const restored = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      archivedAt: null,
+      status: project.currentStage === 'PROJECT_CREATED' ? 'DRAFT' : 'WAITING',
+      lastOpenedAt: new Date(),
+      updatedAt: new Date()
+    }
+  });
+  return reconcileProjectState(userId, restored.id, { touchOpened: true });
 }
 
 async function activeProject(userId, tx = prisma) {
@@ -854,6 +891,7 @@ module.exports = {
   reconcileProjectState,
   renameProject,
   archiveProject,
+  restoreProject,
   activeProject,
   claimActiveJob,
   updateActiveJob,
