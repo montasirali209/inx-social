@@ -221,6 +221,8 @@ export type CreativeFlowProject = {
         creativeStrategy: { x: number; y: number }
         generateCreatives: { x: number; y: number }
       }
+      creativePositions: Record<string, { x: number; y: number }>
+      schedulePosition: { x: number; y: number } | null
       viewport: { x: number; y: number; zoom: number }
     }
   }
@@ -312,6 +314,8 @@ export function analyzeCreativeFlowProject(projectId: string, input: {
 
 export function saveCreativeFlowProjectCanvas(projectId: string, input: {
   positions: Partial<Record<'productUrl' | 'productImages' | 'analyzeProduct' | 'productIntelligence' | 'campaignSetup' | 'creativeStrategy' | 'generateCreatives', { x: number; y: number }>>
+  creativePositions?: Record<string, { x: number; y: number }>
+  schedulePosition?: { x: number; y: number } | null
   viewport?: { x: number; y: number; zoom: number }
 }) {
   return apiRequest<{ project: CreativeFlowProject }>(
