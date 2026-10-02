@@ -221,7 +221,9 @@ function creativeNodeId(postId: string) {
   return `creative:${postId}`
 }
 
-function creativeNodePosition(project: CreativeFlowProject, index: number) {
+function creativeNodePosition(project: CreativeFlowProject, postId: string, index: number) {
+  const persisted = project.workflow.canvas.creativePositions?.[postId]
+  if (persisted) return persisted
   const base = project.workflow.canvas.positions.generateCreatives
   const rowCount = 4
   const column = Math.floor(index / rowCount)
@@ -233,6 +235,7 @@ function creativeNodePosition(project: CreativeFlowProject, index: number) {
 }
 
 function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
+  if (project.workflow.canvas.schedulePosition) return project.workflow.canvas.schedulePosition
   const base = project.workflow.canvas.positions.generateCreatives
   const columns = Math.max(1, Math.ceil(Math.max(creativeCount, 1) / 4))
   return {
@@ -258,7 +261,7 @@ function buildReviewGraph(
   const nodes: Stage2Node[] = visiblePosts.map((post, index) => ({
     id: creativeNodeId(post.id),
     type: 'creativeAsset',
-    position: creativeNodePosition(project, index),
+    position: creativeNodePosition(project, post.id, index),
     data: {},
     draggable: true,
   }))
@@ -884,6 +887,11 @@ function CreativeFlowWorkspaceInner({
   const saveCanvas = useCallback(async (nextNodes: Stage2Node[], viewport?: Viewport) => {
     const byId = new Map(nextNodes.map((node) => [node.id, node.position]))
     try {
+      const creativePositions = Object.fromEntries(
+        nextNodes
+          .filter((node) => node.id.startsWith('creative:'))
+          .map((node) => [node.id.replace(/^creative:/, ''), node.position]),
+      )
       const next = await saveCreativeFlowProjectCanvas(project.id, {
         positions: {
           productUrl: byId.get('productUrl'),
@@ -894,6 +902,8 @@ function CreativeFlowWorkspaceInner({
           creativeStrategy: byId.get('creativeStrategy'),
           generateCreatives: byId.get('generateCreatives'),
         },
+        creativePositions,
+        schedulePosition: byId.get('scheduleCampaign') || null,
         viewport,
       })
       updateCachedProject(next)
