@@ -220,6 +220,7 @@ function CreativeFlowWorkspaceInner({
   const [error, setError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [localPreviews, setLocalPreviews] = useState<LocalPreview[]>([])
+  const previewUrlsRef = useRef<Set<string>>(new Set())
   const [nodes, setNodes, onNodesChange] = useNodesState<Stage2Node>(defaultNodes(initialProject))
   const [edges, setEdges, onEdgesChange] = useEdgesState<Stage2Edge>(defaultEdges(initialProject))
   const lastStageRef = useRef(initialProject.currentStage)
@@ -281,8 +282,9 @@ function CreativeFlowWorkspaceInner({
   }, [analysis, flow, project, running, setEdges, setNodes])
 
   useEffect(() => () => {
-    localPreviews.forEach((item) => URL.revokeObjectURL(item.url))
-  }, [localPreviews])
+    previewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    previewUrlsRef.current.clear()
+  }, [])
 
   const persistSource = useCallback(async (website: string, referenceAssetIds: string[], referenceNames: string[]) => {
     const next = await saveCreativeFlowProjectSource(project.id, { website, referenceAssetIds, referenceNames })
@@ -338,7 +340,9 @@ function CreativeFlowWorkspaceInner({
         })
         nextIds.push(stored.id)
         nextNames.push(file.name)
-        newPreviews.push({ id: stored.id, name: file.name, url: URL.createObjectURL(file) })
+        const previewUrl = URL.createObjectURL(file)
+        previewUrlsRef.current.add(previewUrl)
+        newPreviews.push({ id: stored.id, name: file.name, url: previewUrl })
       }
       setLocalPreviews((current) => [...current, ...newPreviews])
       await persistSource(
@@ -348,7 +352,10 @@ function CreativeFlowWorkspaceInner({
       )
       setUploadProgress(100)
     } catch (caught) {
-      newPreviews.forEach((item) => URL.revokeObjectURL(item.url))
+      newPreviews.forEach((item) => {
+        URL.revokeObjectURL(item.url)
+        previewUrlsRef.current.delete(item.url)
+      })
       setError(caught instanceof Error ? caught.message : 'Product images could not be uploaded.')
     } finally {
       setSourceBusy(false)
@@ -365,7 +372,10 @@ function CreativeFlowWorkspaceInner({
       const removedId = project.workflow.source.referenceAssetIds[index]
       setLocalPreviews((current) => {
         const target = current.find((item) => item.id === removedId)
-        if (target) URL.revokeObjectURL(target.url)
+        if (target) {
+          URL.revokeObjectURL(target.url)
+          previewUrlsRef.current.delete(target.url)
+        }
         return current.filter((item) => item.id !== removedId)
       })
       await persistSource(normaliseUrlInput(urlDraft) || project.workflow.source.normalizedUrl, ids, names)
