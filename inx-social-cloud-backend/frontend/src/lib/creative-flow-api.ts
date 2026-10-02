@@ -237,6 +237,7 @@ export type CreativeFlowProject = {
 
 export type CreativeFlowProjectList = {
   projects: CreativeFlowProject[]
+  archivedProjects: CreativeFlowProject[]
   activeProject: CreativeFlowProject | null
 }
 
@@ -275,6 +276,13 @@ export function archiveCreativeFlowProject(projectId: string) {
     `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}`,
     { method: 'DELETE' },
   )
+}
+
+export function restoreCreativeFlowProject(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/restore`,
+    { method: 'POST' },
+  ).then((response) => response.project)
 }
 
 
