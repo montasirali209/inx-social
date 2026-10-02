@@ -6,6 +6,7 @@ const projects = require('./creativeFlowProjectService');
 const activeProductAnalyses = new Set();
 const activeStrategyPlans = new Set();
 const activeRenderStarts = new Set();
+const activeCreativeRegenerations = new Set();
 const renderMonitorTimers = new Map();
 let runtimeStarted = false;
 
@@ -442,6 +443,100 @@ async function startGeneration(userId, projectId) {
   return claimed;
 }
 
+async function processCreativeRegeneration(userId, projectId) {
+  const project = await projects.getProject(userId, projectId);
+  if (!project || project.activeJobType !== 'CREATIVE_REGENERATE' || !project.renderCampaignId || !project.activeJobId) return;
+
+  try {
+    await projects.updateActiveJob(userId, projectId, {
+      currentStage: 'CREATIVE_REGENERATING',
+      progressCurrent: 0,
+      progressTotal: 1,
+      progressLabel: 'Creating a new version of this creative'
+    });
+
+    const campaign = await creativeFlow.regenerateCreativeFlowPost(
+      userId,
+      project.renderCampaignId,
+      project.activeJobId
+    );
+    const ready = (Array.isArray(campaign.posts) ? campaign.posts : [])
+      .filter(post => Boolean(post.mediaAsset?.url || post.mediaAssetId)).length;
+    const total = Math.max(Number(campaign.imagePostCount || 0), 1);
+
+    await projects.releaseActiveJob(userId, projectId, {
+      status: 'WAITING',
+      currentStage: campaign.status === 'PARTIAL' ? 'RENDER_PARTIAL' : 'RENDER_READY',
+      progressCurrent: ready,
+      progressTotal: total,
+      progressLabel: 'Creative regenerated and ready for review'
+    });
+  } catch (error) {
+    console.error('[CREATIVE FLOW REGENERATE]', projectId, clean(error?.message, 800));
+    await projects.releaseActiveJob(userId, projectId, {
+      status: 'FAILED',
+      currentStage: 'CREATIVE_REGENERATE_FAILED',
+      progressLabel: 'This creative needs another try',
+      lastError: error?.publicMessage || error?.message || 'Creative regeneration failed.'
+    }).catch(() => {});
+  }
+}
+
+function queueCreativeRegeneration(userId, projectId) {
+  const key = String(projectId);
+  if (activeCreativeRegenerations.has(key)) return;
+  activeCreativeRegenerations.add(key);
+  setImmediate(() => {
+    void processCreativeRegeneration(userId, projectId)
+      .catch(error => console.error('[CREATIVE FLOW REGENERATE QUEUE]', key, clean(error?.message, 800)))
+      .finally(() => activeCreativeRegenerations.delete(key));
+  });
+}
+
+async function startCreativeRegeneration(userId, projectId, postId, input = {}) {
+  const project = await projects.getProject(userId, projectId);
+  if (!project.renderCampaignId) {
+    throw projects.publicError('Generate creatives before regenerating one.', 'CREATIVE_FLOW_RENDER_REQUIRED', 409);
+  }
+
+  const estimate = await creativeFlow.estimateCreativeFlowRender(userId, 1);
+  if (!estimate.canGenerate) {
+    throw projects.publicError(
+      `Regenerating this creative needs ${estimate.requiredCredits} AI credits, but only ${estimate.creditsRemaining} credits remain.`,
+      'CREATIVE_FLOW_CREDITS_INSUFFICIENT',
+      402
+    );
+  }
+
+  const claimed = await projects.claimActiveJob(userId, projectId, {
+    jobType: 'CREATIVE_REGENERATE',
+    jobId: String(postId),
+    currentStage: 'CREATIVE_REGENERATING',
+    progressCurrent: 0,
+    progressTotal: 1,
+    progressLabel: 'Preparing a new creative version'
+  });
+
+  try {
+    await creativeFlow.editCreativeFlowPost(userId, project.renderCampaignId, postId, {
+      caption: input.caption,
+      imageBrief: input.imageBrief,
+      regenerate: false
+    });
+  } catch (error) {
+    await projects.releaseActiveJob(userId, projectId, {
+      status: 'FAILED',
+      currentStage: 'CREATIVE_REGENERATE_FAILED',
+      progressLabel: 'Creative changes could not be saved',
+      lastError: error?.publicMessage || error?.message || 'Creative changes could not be saved.'
+    }).catch(() => {});
+    throw error;
+  }
+
+  queueCreativeRegeneration(userId, projectId);
+  return claimed;
+}
+
 async function startCreativeFlowProjectRuntime() {
   if (runtimeStarted) return;
   runtimeStarted = true;
@@ -449,9 +544,9 @@ async function startCreativeFlowProjectRuntime() {
     const pending = await prisma.creativeFlowProject.findMany({
       where: {
         archivedAt: null,
-        activeJobType: { in: ['PRODUCT_ANALYSIS', 'STRATEGY_PLANNING', 'CREATIVE_RENDER'] }
+        activeJobType: { in: ['PRODUCT_ANALYSIS', 'STRATEGY_PLANNING', 'CREATIVE_RENDER', 'CREATIVE_REGENERATE'] }
       },
-      select: { id: true, userId: true, activeJobType: true, renderCampaignId: true },
+      select: { id: true, userId: true, activeJobType: true, activeJobId: true, renderCampaignId: true },
       orderBy: { activeJobStartedAt: 'asc' },
       take: 100
     });
@@ -464,6 +559,8 @@ async function startCreativeFlowProjectRuntime() {
       } else if (project.activeJobType === 'CREATIVE_RENDER') {
         if (project.renderCampaignId) queueRenderMonitor(project.userId, project.id, project.renderCampaignId, 500);
         else queueRenderStart(project.userId, project.id);
+      } else if (project.activeJobType === 'CREATIVE_REGENERATE') {
+        queueCreativeRegeneration(project.userId, project.id);
       }
     });
 
@@ -492,6 +589,9 @@ module.exports = {
   queueRenderStart,
   monitorRender,
   queueRenderMonitor,
+  startCreativeRegeneration,
+  processCreativeRegeneration,
+  queueCreativeRegeneration,
   startCreativeFlowProjectRuntime,
   normalizedWebsite
 };
