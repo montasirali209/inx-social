@@ -60,111 +60,98 @@ function ExpressiveMotion({ state, className }: { state: CreativeFlowMotionState
     if (reduce) return
 
     const root = rootRef.current
-    const face = root.querySelector('[data-face]')
-    const halo = root.querySelector('[data-halo]')
-    const eyes = root.querySelectorAll('[data-eye]')
-    const thoughts = root.querySelectorAll('[data-thought]')
-    const sparks = root.querySelectorAll('[data-spark]')
-    const alert = root.querySelector('[data-alert]')
+    const ringOuter = root.querySelector('[data-ring-outer]')
+    const ringInner = root.querySelector('[data-ring-inner]')
+    const core = root.querySelector('[data-core]')
+    const orbiters = root.querySelectorAll('[data-orbiter]')
+    const bars = root.querySelectorAll('[data-bar]')
+    const particles = root.querySelectorAll('[data-particle]')
+    const scan = root.querySelector('[data-scan]')
+    const successMark = root.querySelector('[data-success-mark]')
+    const errorMark = root.querySelector('[data-error-mark]')
 
     const context = gsap.context(() => {
+      gsap.to(ringOuter, { rotate: 360, duration: state === 'working' ? 3.8 : 11, repeat: -1, ease: 'none' })
+      gsap.to(ringInner, { rotate: -360, duration: state === 'working' ? 5.2 : 15, repeat: -1, ease: 'none' })
+
       if (state === 'working') {
-        gsap.to(face, { y: -2, rotate: 4, duration: 0.58, repeat: -1, yoyo: true, ease: 'sine.inOut' })
-        gsap.to(eyes, { x: 3, duration: 0.48, repeat: -1, yoyo: true, stagger: 0.06, ease: 'sine.inOut' })
-        gsap.to(halo, { rotate: 360, duration: 7, repeat: -1, ease: 'none' })
-        gsap.fromTo(thoughts, { opacity: 0.28, scale: 0.72, y: 2 }, {
-          opacity: 1,
-          scale: 1.18,
-          y: -5,
-          duration: 0.78,
-          repeat: -1,
-          yoyo: true,
-          stagger: 0.18,
-          ease: 'sine.inOut',
-        })
+        gsap.to(core, { scale: 1.06, duration: 0.72, repeat: -1, yoyo: true, ease: 'sine.inOut' })
+        gsap.to(orbiters, { rotate: 360, transformOrigin: '50% 50%', duration: 2.4, repeat: -1, ease: 'none', stagger: 0.16 })
+        gsap.fromTo(bars, { scaleY: 0.35, opacity: 0.45 }, { scaleY: 1, opacity: 1, duration: 0.48, repeat: -1, yoyo: true, stagger: 0.1, ease: 'sine.inOut' })
+        gsap.fromTo(scan, { yPercent: -110, opacity: 0 }, { yPercent: 110, opacity: 0.85, duration: 1.15, repeat: -1, ease: 'power1.inOut' })
+        gsap.fromTo(particles, { opacity: 0.18, scale: 0.55 }, { opacity: 1, scale: 1.15, duration: 0.7, repeat: -1, yoyo: true, stagger: 0.12, ease: 'sine.inOut' })
       } else if (state === 'success') {
-        gsap.fromTo(face, { scale: 0.72, rotate: -9 }, { scale: 1, rotate: 0, duration: 0.66, ease: 'back.out(2.2)' })
-        gsap.fromTo(sparks, { opacity: 0, scale: 0.2 }, {
-          opacity: 1,
-          scale: 1,
-          duration: 0.38,
-          stagger: 0.08,
-          ease: 'back.out(2)',
-        })
-        gsap.to(sparks, { y: -2, duration: 1.4, repeat: -1, yoyo: true, stagger: 0.12, ease: 'sine.inOut' })
+        gsap.fromTo(core, { scale: 0.7, rotate: -14 }, { scale: 1, rotate: 0, duration: 0.62, ease: 'back.out(2)' })
+        gsap.fromTo(successMark, { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.44, delay: 0.12, ease: 'back.out(2.3)' })
+        gsap.fromTo(particles, { opacity: 0, scale: 0.3 }, { opacity: 0.9, scale: 1, duration: 0.4, stagger: 0.08, ease: 'back.out(2)' })
       } else if (state === 'error') {
-        gsap.fromTo(face, { x: -4, rotate: -3 }, { x: 4, rotate: 3, duration: 0.085, repeat: 7, yoyo: true, ease: 'none' })
-        gsap.fromTo(alert, { scale: 0.5, y: 5 }, { scale: 1, y: 0, duration: 0.48, ease: 'back.out(2.4)' })
-        gsap.to(alert, { y: -2, duration: 0.7, repeat: -1, yoyo: true, ease: 'sine.inOut' })
+        gsap.fromTo(core, { x: -3 }, { x: 3, duration: 0.085, repeat: 7, yoyo: true, ease: 'none' })
+        gsap.fromTo(errorMark, { scale: 0.4, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.38, ease: 'back.out(2.3)' })
       } else if (state === 'selected') {
-        gsap.to(face, { scale: 1.05, duration: 0.7, repeat: -1, yoyo: true, ease: 'sine.inOut' })
-        gsap.to(halo, { rotate: 360, duration: 10, repeat: -1, ease: 'none' })
+        gsap.to(core, { scale: 1.08, duration: 0.8, repeat: -1, yoyo: true, ease: 'sine.inOut' })
+        gsap.to(orbiters, { rotate: 360, transformOrigin: '50% 50%', duration: 5.5, repeat: -1, ease: 'none', stagger: 0.2 })
       } else {
-        gsap.to(face, { y: -2, rotate: -1.5, duration: 2.1, repeat: -1, yoyo: true, ease: 'sine.inOut' })
-        gsap.to(eyes, { y: 1, duration: 1.8, repeat: -1, yoyo: true, stagger: 0.12, ease: 'sine.inOut' })
-        gsap.to(halo, { rotate: 360, duration: 18, repeat: -1, ease: 'none' })
+        gsap.to(core, { y: -1.5, duration: 1.9, repeat: -1, yoyo: true, ease: 'sine.inOut' })
+        gsap.to(bars, { scaleY: 0.72, duration: 1.35, repeat: -1, yoyo: true, stagger: 0.12, ease: 'sine.inOut' })
       }
     }, root)
 
     return () => context.revert()
   }, [state])
 
-  const working = state === 'working'
   const success = state === 'success'
   const error = state === 'error'
   const selected = state === 'selected'
-
-  const ringClass = error
-    ? 'border-red-300/70 bg-red-50/60'
+  const working = state === 'working'
+  const accent = error
+    ? 'border-red-300/70'
     : success
-      ? 'border-brand-green/30 bg-brand-green/[.045]'
+      ? 'border-emerald-300/70'
       : selected
-        ? 'border-brand-purple/30 bg-brand-purple/[.04]'
-        : 'border-brand-cyan/25 bg-brand-cyan/[.035]'
-
-  const faceClass = error
-    ? 'border-red-300 bg-red-50 shadow-[0_8px_24px_rgba(239,68,68,.14)]'
+        ? 'border-violet-300/70'
+        : 'border-cyan-300/70'
+  const coreTone = error
+    ? 'border-red-300 bg-red-50 shadow-[0_8px_26px_rgba(239,68,68,.16)]'
     : success
-      ? 'border-brand-green/25 bg-white shadow-[0_8px_24px_rgba(34,197,94,.12)]'
+      ? 'border-emerald-300 bg-white shadow-[0_8px_26px_rgba(16,185,129,.16)]'
       : selected
-        ? 'border-brand-purple/25 bg-white shadow-[0_8px_24px_rgba(139,92,246,.12)]'
-        : 'border-brand-cyan/25 bg-white shadow-[0_8px_24px_rgba(20,184,166,.12)]'
+        ? 'border-violet-300 bg-white shadow-[0_8px_26px_rgba(139,92,246,.16)]'
+        : 'border-cyan-300 bg-white shadow-[0_8px_26px_rgba(6,182,212,.16)]'
 
   return <div aria-hidden="true" className={`relative grid place-items-center overflow-visible ${className}`} ref={rootRef}>
-    <div data-halo className={`absolute inset-[6%] rounded-full border border-dashed ${ringClass}`} />
+    <div data-ring-outer className={`absolute inset-[3%] rounded-full border ${accent} opacity-80`}>
+      <span className="absolute left-1/2 top-[-4%] size-[10%] -translate-x-1/2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,.5)]" />
+    </div>
+    <div data-ring-inner className={`absolute inset-[14%] rounded-full border border-dashed ${accent} opacity-55`}>
+      <span className="absolute bottom-[2%] right-[4%] size-[9%] rounded-full bg-violet-400/90" />
+    </div>
 
-    {working && <>
-      <span data-thought className="absolute right-[3%] top-[2%] size-[14%] rounded-full border border-brand-purple/20 bg-white shadow-sm" />
-      <span data-thought className="absolute right-[18%] top-[15%] size-[10%] rounded-full border border-brand-cyan/20 bg-white shadow-sm" />
-      <span data-thought className="absolute right-[27%] top-[28%] size-[6%] rounded-full bg-brand-cyan/25" />
-    </>}
+    <span data-orbiter className="absolute inset-[8%] rounded-full">
+      <i className="absolute right-[3%] top-1/2 size-[7%] -translate-y-1/2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,.55)]" />
+    </span>
+    <span data-orbiter className="absolute inset-[18%] rounded-full">
+      <i className="absolute left-[2%] top-[26%] size-[8%] rounded-full bg-violet-400 shadow-[0_0_8px_rgba(167,139,250,.5)]" />
+    </span>
 
-    {success && <>
-      <span data-spark className="absolute left-[4%] top-[17%] text-[9px] font-black text-brand-green">✦</span>
-      <span data-spark className="absolute right-[5%] top-[10%] text-[8px] font-black text-brand-cyan">✦</span>
-      <span data-spark className="absolute bottom-[7%] right-[12%] text-[7px] font-black text-brand-purple">✦</span>
-    </>}
+    <span data-particle className="absolute left-[4%] top-[18%] size-[5%] rounded-full bg-emerald-400/80" />
+    <span data-particle className="absolute bottom-[8%] right-[15%] size-[4%] rounded-full bg-cyan-400/80" />
+    <span data-particle className="absolute right-[7%] top-[11%] size-[3%] rounded-full bg-violet-400/80" />
 
-    {error && <span data-alert className="absolute -right-[2%] -top-[2%] grid size-[30%] min-h-4 min-w-4 place-items-center rounded-full border-2 border-white bg-red-500 text-[8px] font-black leading-none text-white shadow-[0_6px_18px_rgba(239,68,68,.28)]">!</span>}
+    <div data-core className={`relative grid size-[48%] place-items-center overflow-hidden rounded-[30%] border ${coreTone}`}>
+      {working && <span data-scan className="absolute inset-x-[10%] top-1/2 h-[2px] rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,.75)]" />}
+      <div className="flex h-[34%] items-end gap-[8%]">
+        <span data-bar className={`h-[55%] w-[4px] origin-bottom rounded-full ${error ? 'bg-red-400' : success ? 'bg-emerald-400' : selected ? 'bg-violet-400' : 'bg-cyan-400'}`} />
+        <span data-bar className={`h-full w-[4px] origin-bottom rounded-full ${error ? 'bg-red-400' : success ? 'bg-emerald-400' : selected ? 'bg-violet-400' : 'bg-violet-400'}`} />
+        <span data-bar className={`h-[72%] w-[4px] origin-bottom rounded-full ${error ? 'bg-red-400' : success ? 'bg-emerald-400' : selected ? 'bg-violet-400' : 'bg-cyan-400'}`} />
+      </div>
 
-    <div data-face className={`relative grid size-[62%] place-items-center rounded-[38%] border ${faceClass}`}>
-      {error ? <>
-        <span className="absolute left-[23%] top-[29%] text-[8px] font-black leading-none text-red-500">×</span>
-        <span className="absolute right-[23%] top-[29%] text-[8px] font-black leading-none text-red-500">×</span>
-        <span className="absolute bottom-[22%] h-[18%] w-[34%] rounded-t-full border-x-2 border-t-2 border-red-400" />
-      </> : success ? <>
-        <span data-eye className="absolute left-[25%] top-[31%] h-[8%] w-[14%] rounded-b-full border-b-2 border-brand-green" />
-        <span data-eye className="absolute right-[25%] top-[31%] h-[8%] w-[14%] rounded-b-full border-b-2 border-brand-green" />
-        <span className="absolute bottom-[21%] h-[18%] w-[38%] rounded-b-full border-b-2 border-brand-green" />
-      </> : working ? <>
-        <span data-eye className="absolute left-[25%] top-[31%] size-[9%] rounded-full bg-brand-purple/75" />
-        <span data-eye className="absolute right-[25%] top-[31%] size-[9%] rounded-full bg-brand-purple/75" />
-        <span className="absolute bottom-[25%] flex gap-[2px]"><i className="size-[3px] rounded-full bg-brand-cyan" /><i className="size-[3px] rounded-full bg-brand-cyan/70" /><i className="size-[3px] rounded-full bg-brand-cyan/40" /></span>
-      </> : <>
-        <span data-eye className="absolute left-[25%] top-[31%] size-[8%] rounded-full bg-brand-cyan/75" />
-        <span data-eye className="absolute right-[25%] top-[31%] size-[8%] rounded-full bg-brand-cyan/75" />
-        <span className={`absolute bottom-[23%] h-[13%] w-[32%] rounded-b-full border-b-2 ${selected ? 'border-brand-purple' : 'border-brand-cyan/70'}`} />
-      </>}
+      {success && <span data-success-mark className="absolute inset-0 grid place-items-center bg-white/94">
+        <i className="h-[22%] w-[38%] -translate-y-[4%] -rotate-45 border-b-[3px] border-l-[3px] border-emerald-500" />
+      </span>}
+      {error && <span data-error-mark className="absolute inset-0 grid place-items-center bg-red-50/94">
+        <i className="absolute h-[46%] w-[3px] rotate-45 rounded-full bg-red-500" />
+        <i className="absolute h-[46%] w-[3px] -rotate-45 rounded-full bg-red-500" />
+      </span>}
     </div>
   </div>
 }
