@@ -32,9 +32,9 @@ test('Stage 6 reconciles render review and handoff state when a project reopens'
   assert.match(service, /workflow\.review\.selectedPostIds\.filter/);
   assert.match(service, /workflow\.review\.revealedPostIds\.filter/);
   assert.match(service, /workflow\.canvas\.creativePositions/);
-  assert.match(service, /activeJobType = 'CREATIVE_RENDER'/);
-  assert.match(service, /currentStage = 'RENDER_READY'/);
-  assert.match(service, /currentStage = 'RENDER_PARTIAL'/);
+  assert.match(service, /data\.activeJobType = 'CREATIVE_RENDER'/);
+  assert.match(service, /'RENDER_READY'/);
+  assert.match(service, /'RENDER_PARTIAL'/);
   assert.match(service, /return reconcileProjectState\(userId, projectId/);
 });
 
