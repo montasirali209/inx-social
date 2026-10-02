@@ -795,6 +795,91 @@ function CreativeFlowWorkspaceInner({
     }
   }, [anyJobRunning, blockedByAnother, generationBusy, project.id, project.workflow.strategyPlan, updateCachedProject])
 
+  const toggleCreativeSelection = useCallback(async (postId: string) => {
+    if (reviewBusy || Boolean(project.activeJobType) || !renderCampaign) return
+    const current = project.workflow.review.selectedPostIds
+    const next = current.includes(postId)
+      ? current.filter((id) => id !== postId)
+      : [...current, postId]
+    setReviewBusy(true)
+    setError('')
+    try {
+      const updated = await saveCreativeFlowReviewSelection(project.id, next)
+      updateCachedProject(updated)
+      if (next.length) {
+        window.setTimeout(() => {
+          const focusIds = [...next.slice(-3).map(creativeNodeId), 'scheduleCampaign']
+          void flow.fitView({
+            nodes: focusIds.map((id) => ({ id })),
+            padding: 0.3,
+            duration: 620,
+            maxZoom: 1.05,
+          })
+        }, 180)
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not update the review selection.')
+    } finally {
+      setReviewBusy(false)
+    }
+  }, [flow, project.activeJobType, project.id, project.workflow.review.selectedPostIds, renderCampaign, reviewBusy, updateCachedProject])
+
+  const regenerateCreative = useCallback(async (postId: string, input: { caption?: string; imageBrief?: string } = {}) => {
+    if (Boolean(project.activeJobType) || blockedByAnother || reviewBusy) return
+    setReviewBusy(true)
+    setError('')
+    try {
+      const updated = await regenerateCreativeFlowProjectPost(project.id, postId, input)
+      updateCachedProject(updated)
+      await queryClient.invalidateQueries({ queryKey: ['creative-flow-render', project.renderCampaignId] })
+      window.setTimeout(() => {
+        void flow.fitView({
+          nodes: [{ id: 'generateCreatives' }, { id: creativeNodeId(postId) }],
+          padding: 0.28,
+          duration: 580,
+          maxZoom: 1.08,
+        })
+      }, 120)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not regenerate this creative.')
+    } finally {
+      setReviewBusy(false)
+    }
+  }, [blockedByAnother, flow, project.activeJobType, project.id, project.renderCampaignId, queryClient, reviewBusy, updateCachedProject])
+
+  const removeCreative = useCallback(async (postId: string) => {
+    if (Boolean(project.activeJobType) || reviewBusy) return
+    if (!window.confirm('Remove this creative from the Creative Flow campaign? The generated Media Library asset will not be deleted.')) return
+    setReviewBusy(true)
+    setError('')
+    try {
+      const response = await removeCreativeFlowProjectPost(project.id, postId)
+      updateCachedProject(response.project)
+      queryClient.setQueryData(['creative-flow-render', project.renderCampaignId], response.campaign)
+      setRevealedPostIds((current) => current.filter((id) => id !== postId))
+      revealScheduledRef.current.delete(postId)
+      setExpandedCreativeId((current) => current === postId ? null : current)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not remove this creative.')
+    } finally {
+      setReviewBusy(false)
+    }
+  }, [project.activeJobType, project.id, project.renderCampaignId, queryClient, reviewBusy, updateCachedProject])
+
+  const sendSelectedToScheduler = useCallback(async () => {
+    if (handoffBusy || Boolean(project.activeJobType) || !project.workflow.review.selectedPostIds.length) return
+    setHandoffBusy(true)
+    setError('')
+    try {
+      const response = await handoffCreativeFlowProject(project.id)
+      updateCachedProject(response.project)
+      navigate('/bulk-scheduler', { state: { aiCampaignId: response.campaign.id } })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not send the selected creatives to Bulk Scheduler.')
+      setHandoffBusy(false)
+    }
+  }, [handoffBusy, navigate, project.activeJobType, project.id, project.workflow.review.selectedPostIds.length, updateCachedProject])
+
   const saveCanvas = useCallback(async (nextNodes: Stage2Node[], viewport?: Viewport) => {
     const byId = new Map(nextNodes.map((node) => [node.id, node.position]))
     try {
@@ -830,6 +915,10 @@ function CreativeFlowWorkspaceInner({
     generationBusy,
     generationEstimate: generationEstimateQuery.data || null,
     generationEstimateLoading: generationEstimateQuery.isLoading,
+    renderCampaign,
+    expandedCreativeId,
+    reviewBusy,
+    handoffBusy,
     campaignGoal,
     campaignPlatforms,
     creativeCount,
@@ -846,6 +935,7 @@ function CreativeFlowWorkspaceInner({
     setCampaignExpanded,
     setAdvancedExpanded,
     setStrategyExpanded,
+    setExpandedCreativeId,
     setCampaignGoal,
     toggleCampaignPlatform: (value) => setCampaignPlatforms((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]),
     setCreativeCount,
@@ -855,32 +945,42 @@ function CreativeFlowWorkspaceInner({
     startStrategy: () => void startStrategy(),
     toggleStrategyConcept: (sequence) => void toggleStrategyConcept(sequence),
     startGeneration: () => void startGeneration(),
+    toggleCreativeSelection: (postId) => void toggleCreativeSelection(postId),
+    regenerateCreative: (postId, input) => void regenerateCreative(postId, input),
+    removeCreative: (postId) => void removeCreative(postId),
+    sendSelectedToScheduler: () => void sendSelectedToScheduler(),
     saveUrl: () => void saveUrl(),
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, imageExpanded, localPreviews, project, removeReference, runAnalysis, running, saveCampaign, saveUrl, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, error, expandedCreativeId, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3 sm:p-4">
         <div className="pointer-events-auto max-w-[min(620px,72vw)] rounded-2xl border border-border-soft bg-white/92 px-3.5 py-2.5 shadow-[0_10px_32px_rgba(15,23,42,.07)] backdrop-blur-lg">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 4</span>
+            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 5</span>
             <span className={`rounded-full border px-2 py-0.5 text-[8px] font-semibold ${running ? 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan' : analysis ? 'border-brand-green/20 bg-brand-green/[.05] text-brand-green' : 'border-border-soft bg-slate-50 text-text-soft'}`}>
               {running
                 ? 'Analysing product'
                 : strategyRunning
                   ? 'Planning strategy'
-                  : renderRunning
-                    ? 'Generating creatives'
-                    : renderFinished(project)
-                      ? 'Creatives ready'
-                      : project.workflow.strategyPlan
-                        ? 'Strategy ready'
-                        : project.currentStage === 'CAMPAIGN_READY'
-                          ? 'Campaign ready'
-                          : analysis ? 'Configure campaign' : 'Source setup'}
+                  : project.activeJobType === 'CREATIVE_REGENERATE'
+                    ? 'Regenerating creative'
+                    : renderRunning
+                      ? 'Generating creatives'
+                      : project.handoffCampaignId
+                        ? 'Sent to Bulk Scheduler'
+                        : renderFinished(project) || project.currentStage === 'REVIEW_READY'
+                          ? project.workflow.review.selectedPostIds.length
+                            ? `${project.workflow.review.selectedPostIds.length} selected for scheduling`
+                            : 'Review creatives'
+                          : project.workflow.strategyPlan
+                            ? 'Strategy ready'
+                            : project.currentStage === 'CAMPAIGN_READY'
+                              ? 'Campaign ready'
+                              : analysis ? 'Configure campaign' : 'Source setup'}
             </span>
           </div>
           <p className="mt-1 truncate text-[10px] font-semibold">{project.name}</p>
