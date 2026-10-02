@@ -66,12 +66,14 @@ import {
   saveCreativeFlowCampaignSetup,
   saveCreativeFlowProjectCanvas,
   saveCreativeFlowProjectSource,
+  saveCreativeFlowReviewReveal,
   saveCreativeFlowReviewSelection,
   saveCreativeFlowStrategySelection,
   startCreativeFlowProjectGeneration,
   startCreativeFlowProjectStrategy,
   regenerateCreativeFlowProjectPost,
   removeCreativeFlowProjectPost,
+  retryCreativeFlowMissing,
   type CreativeFlowAnalysis,
   type CreativeFlowGenerationEstimate,
   type CreativeFlowProject,
@@ -107,6 +109,7 @@ type WorkspaceContextValue = {
   renderCampaign: CreativeFlowRenderCampaign | null
   expandedCreativeId: string | null
   reviewBusy: boolean
+  retryMissingBusy: boolean
   handoffBusy: boolean
   campaignGoal: string
   campaignPlatforms: string[]
@@ -135,6 +138,9 @@ type WorkspaceContextValue = {
   toggleStrategyConcept: (sequence: number) => void
   startGeneration: () => void
   toggleCreativeSelection: (postId: string) => void
+  selectAllReadyCreatives: () => void
+  clearCreativeSelection: () => void
+  retryMissingCreatives: () => void
   regenerateCreative: (postId: string, input?: { caption?: string; imageBrief?: string }) => void
   removeCreative: (postId: string) => void
   sendSelectedToScheduler: () => void
@@ -454,9 +460,11 @@ function CreativeFlowWorkspaceInner({
   const [generationBusy, setGenerationBusy] = useState(false)
   const [expandedCreativeId, setExpandedCreativeId] = useState<string | null>(null)
   const [reviewBusy, setReviewBusy] = useState(false)
+  const [retryMissingBusy, setRetryMissingBusy] = useState(false)
   const [handoffBusy, setHandoffBusy] = useState(false)
-  const [revealedPostIds, setRevealedPostIds] = useState<string[]>([])
-  const revealScheduledRef = useRef<Set<string>>(new Set())
+  const [revealedPostIds, setRevealedPostIds] = useState<string[]>(initialProject.workflow.review.revealedPostIds || [])
+  const revealedPostIdsRef = useRef<string[]>(initialProject.workflow.review.revealedPostIds || [])
+  const revealScheduledRef = useRef<Set<string>>(new Set(initialProject.workflow.review.revealedPostIds || []))
   const revealTimersRef = useRef<number[]>([])
   const [campaignGoal, setCampaignGoal] = useState(initialProject.workflow.campaignSetup.goal)
   const [campaignPlatforms, setCampaignPlatforms] = useState<string[]>(initialProject.workflow.campaignSetup.platforms)
@@ -564,7 +572,15 @@ function CreativeFlowWorkspaceInner({
     additions.forEach((post, index) => {
       revealScheduledRef.current.add(post.id)
       const timer = window.setTimeout(() => {
-        setRevealedPostIds((existing) => existing.includes(post.id) ? existing : [...existing, post.id])
+        const existing = revealedPostIdsRef.current
+        if (!existing.includes(post.id)) {
+          const nextRevealed = [...existing, post.id]
+          revealedPostIdsRef.current = nextRevealed
+          setRevealedPostIds(nextRevealed)
+          void saveCreativeFlowReviewReveal(project.id, nextRevealed)
+            .then(updateCachedProject)
+            .catch(() => {})
+        }
         const restoredReview = ['RENDER_READY', 'RENDER_PARTIAL', 'REVIEW_READY', 'HANDOFF_READY'].includes(project.currentStage)
         if (project.activeJobType === 'CREATIVE_RENDER' || (restoredReview && index === additions.length - 1)) {
           window.setTimeout(() => {
@@ -584,7 +600,7 @@ function CreativeFlowWorkspaceInner({
       }, 140 + (index * 190))
       revealTimersRef.current.push(timer)
     })
-  }, [flow, project.activeJobType, project.currentStage, project.workflow.review.selectedPostIds.length, renderCampaign, revealedPostIds])
+  }, [flow, project.activeJobType, project.currentStage, project.id, project.workflow.review.selectedPostIds.length, renderCampaign, revealedPostIds, updateCachedProject])
 
   useEffect(() => () => {
     revealTimersRef.current.forEach((timer) => window.clearTimeout(timer))
@@ -840,6 +856,53 @@ function CreativeFlowWorkspaceInner({
     }
   }, [flow, project.activeJobType, project.id, project.workflow.review.selectedPostIds, renderCampaign, reviewBusy, updateCachedProject])
 
+  const selectAllReadyCreatives = useCallback(async () => {
+    if (reviewBusy || Boolean(project.activeJobType) || !renderCampaign) return
+    const completedIds = renderCampaign.posts
+      .filter((post) => post.contentType === 'IMAGE' && Boolean(post.mediaAssetId))
+      .map((post) => post.id)
+    if (!completedIds.length) return
+    setReviewBusy(true)
+    setError('')
+    try {
+      const updated = await saveCreativeFlowReviewSelection(project.id, completedIds)
+      updateCachedProject(updated)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not select the completed creatives.')
+    } finally {
+      setReviewBusy(false)
+    }
+  }, [project.activeJobType, project.id, renderCampaign, reviewBusy, updateCachedProject])
+
+  const clearCreativeSelection = useCallback(async () => {
+    if (reviewBusy || Boolean(project.activeJobType) || !project.workflow.review.selectedPostIds.length) return
+    setReviewBusy(true)
+    setError('')
+    try {
+      const updated = await saveCreativeFlowReviewSelection(project.id, [])
+      updateCachedProject(updated)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not clear the review selection.')
+    } finally {
+      setReviewBusy(false)
+    }
+  }, [project.activeJobType, project.id, project.workflow.review.selectedPostIds.length, reviewBusy, updateCachedProject])
+
+  const retryMissingCreatives = useCallback(async () => {
+    if (retryMissingBusy || Boolean(project.activeJobType) || blockedByAnother || !project.renderCampaignId) return
+    setRetryMissingBusy(true)
+    setError('')
+    try {
+      const updated = await retryCreativeFlowMissing(project.id)
+      updateCachedProject(updated)
+      await queryClient.invalidateQueries({ queryKey: ['creative-flow-render', project.renderCampaignId] })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not retry the missing creatives.')
+    } finally {
+      setRetryMissingBusy(false)
+    }
+  }, [blockedByAnother, project.activeJobType, project.id, project.renderCampaignId, queryClient, retryMissingBusy, updateCachedProject])
+
   const regenerateCreative = useCallback(async (postId: string, input: { caption?: string; imageBrief?: string } = {}) => {
     if (Boolean(project.activeJobType) || blockedByAnother || reviewBusy) return
     setReviewBusy(true)
@@ -872,8 +935,11 @@ function CreativeFlowWorkspaceInner({
       const response = await removeCreativeFlowProjectPost(project.id, postId)
       updateCachedProject(response.project)
       queryClient.setQueryData(['creative-flow-render', project.renderCampaignId], response.campaign)
-      setRevealedPostIds((current) => current.filter((id) => id !== postId))
+      const nextRevealed = revealedPostIdsRef.current.filter((id) => id !== postId)
+      revealedPostIdsRef.current = nextRevealed
+      setRevealedPostIds(nextRevealed)
       revealScheduledRef.current.delete(postId)
+      void saveCreativeFlowReviewReveal(project.id, nextRevealed).then(updateCachedProject).catch(() => {})
       setExpandedCreativeId((current) => current === postId ? null : current)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Creative Flow could not remove this creative.')
@@ -941,6 +1007,7 @@ function CreativeFlowWorkspaceInner({
     renderCampaign,
     expandedCreativeId,
     reviewBusy,
+    retryMissingBusy,
     handoffBusy,
     campaignGoal,
     campaignPlatforms,
@@ -969,6 +1036,9 @@ function CreativeFlowWorkspaceInner({
     toggleStrategyConcept: (sequence) => void toggleStrategyConcept(sequence),
     startGeneration: () => void startGeneration(),
     toggleCreativeSelection: (postId) => void toggleCreativeSelection(postId),
+    selectAllReadyCreatives: () => void selectAllReadyCreatives(),
+    clearCreativeSelection: () => void clearCreativeSelection(),
+    retryMissingCreatives: () => void retryMissingCreatives(),
     regenerateCreative: (postId, input) => void regenerateCreative(postId, input),
     removeCreative: (postId) => void removeCreative(postId),
     sendSelectedToScheduler: () => void sendSelectedToScheduler(),
@@ -976,14 +1046,14 @@ function CreativeFlowWorkspaceInner({
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, error, expandedCreativeId, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, expandedCreativeId, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3 sm:p-4">
         <div className="pointer-events-auto max-w-[min(620px,72vw)] rounded-2xl border border-border-soft bg-white/92 px-3.5 py-2.5 shadow-[0_10px_32px_rgba(15,23,42,.07)] backdrop-blur-lg">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 5</span>
+            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 6</span>
             <span className={`rounded-full border px-2 py-0.5 text-[8px] font-semibold ${running ? 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan' : analysis ? 'border-brand-green/20 bg-brand-green/[.05] text-brand-green' : 'border-border-soft bg-slate-50 text-text-soft'}`}>
               {running
                 ? 'Analysing product'
