@@ -142,6 +142,8 @@ const creativeFlowCanvasSchema = z.object({
     creativeStrategy: creativeFlowPositionSchema.optional(),
     generateCreatives: creativeFlowPositionSchema.optional()
   }).optional().default({}),
+  creativePositions: z.record(creativeFlowPositionSchema).optional(),
+  schedulePosition: creativeFlowPositionSchema.nullable().optional(),
   viewport: z.object({
     x: z.number().finite().min(-20000).max(20000),
     y: z.number().finite().min(-20000).max(20000),
