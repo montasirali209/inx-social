@@ -188,7 +188,14 @@ function campaignConfigured(project: CreativeFlowProject) {
 }
 
 function renderFinished(project: CreativeFlowProject) {
-  return ['RENDER_READY', 'RENDER_PARTIAL'].includes(project.currentStage)
+  return [
+    'RENDER_READY',
+    'RENDER_PARTIAL',
+    'REVIEW_READY',
+    'HANDOFF_READY',
+    'CREATIVE_REGENERATING',
+    'CREATIVE_REGENERATE_FAILED',
+  ].includes(project.currentStage)
 }
 
 function focusNodeIds(project: CreativeFlowProject) {
@@ -561,8 +568,13 @@ function CreativeFlowWorkspaceInner({
         const restoredReview = ['RENDER_READY', 'RENDER_PARTIAL', 'REVIEW_READY', 'HANDOFF_READY'].includes(project.currentStage)
         if (project.activeJobType === 'CREATIVE_RENDER' || (restoredReview && index === additions.length - 1)) {
           window.setTimeout(() => {
+            const focusIds = [
+              'generateCreatives',
+              creativeNodeId(post.id),
+              ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
+            ]
             void flow.fitView({
-              nodes: [{ id: 'generateCreatives' }, { id: creativeNodeId(post.id) }],
+              nodes: focusIds.map((id) => ({ id })),
               padding: 0.28,
               duration: 520,
               maxZoom: 1.05,
@@ -572,7 +584,7 @@ function CreativeFlowWorkspaceInner({
       }, 140 + (index * 190))
       revealTimersRef.current.push(timer)
     })
-  }, [flow, project.activeJobType, project.currentStage, renderCampaign, revealedPostIds])
+  }, [flow, project.activeJobType, project.currentStage, project.workflow.review.selectedPostIds.length, renderCampaign, revealedPostIds])
 
   useEffect(() => () => {
     revealTimersRef.current.forEach((timer) => window.clearTimeout(timer))
