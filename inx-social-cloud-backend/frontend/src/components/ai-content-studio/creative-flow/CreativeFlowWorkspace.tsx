@@ -245,7 +245,7 @@ function creativeNodePosition(project: CreativeFlowProject, _postId: string, ind
   const row = Math.floor(index / 4)
   return {
     x: base.x + 430 + (column * 340),
-    y: base.y - 420 + (row * 350),
+    y: base.y - 420 + (row * 480),
   }
 }
 
@@ -1103,7 +1103,7 @@ function CreativeFlowWorkspaceInner({
         edges={edges}
         fitView={!project.workflow.canvas.viewport.zoom}
         maxZoom={1.8}
-        minZoom={0.35}
+        minZoom={0.2}
         nodeTypes={nodeTypes}
         nodes={nodes}
         nodesConnectable={false}
