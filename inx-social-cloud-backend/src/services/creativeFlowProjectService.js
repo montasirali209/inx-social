@@ -315,6 +315,13 @@ async function releaseActiveJob(userId, projectId, input = {}) {
 
 async function saveProductSource(userId, projectId, input = {}) {
   const project = await requireProject(userId, projectId);
+  if (project.renderCampaignId) {
+    throw publicError(
+      'Product sources are locked after creative generation starts.',
+      'CREATIVE_FLOW_UPSTREAM_LOCKED',
+      409
+    );
+  }
   const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
   workflow.source = {
     websiteInput: clean(input.websiteInput, 2000),
@@ -363,6 +370,13 @@ async function saveProductAnalysis(userId, projectId, analysis) {
 
 async function saveCampaignSetup(userId, projectId, input = {}) {
   const project = await requireProject(userId, projectId);
+  if (project.renderCampaignId) {
+    throw publicError(
+      'Campaign Setup is locked after creative generation starts.',
+      'CREATIVE_FLOW_UPSTREAM_LOCKED',
+      409
+    );
+  }
   const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
   if (!workflow.analysis) {
     throw publicError(
@@ -453,6 +467,13 @@ async function saveStrategyPlan(userId, projectId, strategyPlan) {
 
 async function saveStrategySelection(userId, projectId, sequences) {
   const project = await requireProject(userId, projectId);
+  if (project.renderCampaignId) {
+    throw publicError(
+      'Strategy selection is locked after creative generation starts.',
+      'CREATIVE_FLOW_UPSTREAM_LOCKED',
+      409
+    );
+  }
   const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
   const concepts = Array.isArray(workflow.strategyPlan?.concepts) ? workflow.strategyPlan.concepts : [];
   if (!concepts.length) {
