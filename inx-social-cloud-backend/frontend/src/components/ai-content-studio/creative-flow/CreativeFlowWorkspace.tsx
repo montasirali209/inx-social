@@ -1584,7 +1584,7 @@ function GenerateCreativesNode(props: NodeProps) {
             <Button disabled={reviewBusy || Boolean(project.activeJobType) || !selectedReviewCount} onClick={clearCreativeSelection} size="sm">Clear selection</Button>
           </div>}
           {missingPosts.length > 0 && <Button className="mt-2 w-full" disabled={retryMissingBusy || Boolean(project.activeJobType)} onClick={retryMissingCreatives} size="sm" variant="primary">{retryMissingBusy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}Retry {missingPosts.length} missing creative{missingPosts.length === 1 ? '' : 's'}</Button>}
-        </div>
+        </div>}
 
         {failed && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'Creative generation stopped unexpectedly. No other project state was lost.'}</div>}
         {failed && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || !generationEstimate?.canGenerate} onClick={startGeneration} size="sm"><RefreshCw className="size-3" />Retry generation start</Button>}
