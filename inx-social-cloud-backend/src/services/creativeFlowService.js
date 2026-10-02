@@ -63,7 +63,16 @@ function emptySourceAnalysis(input, sources = []) {
   };
 }
 
-async function analyzeCreativeFlow(userId, input) {
+async function reportAnalysisProgress(options, current, label) {
+  if (typeof options?.onProgress !== 'function') return;
+  try {
+    await options.onProgress({ current, total: 5, label });
+  } catch (error) {
+    console.warn('[CREATIVE FLOW ANALYSIS PROGRESS]', clean(error?.message, 300));
+  }
+}
+
+async function analyzeCreativeFlow(userId, input, options = {}) {
   requireProvider();
 
   const normalizedUrl = input.website ? postStudio.normalizeUrl(input.website) : '';
@@ -74,12 +83,14 @@ async function analyzeCreativeFlow(userId, input) {
   const referenceIds = [...new Set((input.referenceAssetIds || []).map(String).filter(Boolean))].slice(0, 8);
   const refs = referenceIds.length ? await postStudio.referenceAssets(userId, referenceIds, 8) : [];
   const contexts = normalizedUrl ? [await postStudio.fetchUrlContext(normalizedUrl)] : [];
+  await reportAnalysisProgress(options, 2, 'Product sources collected and validated');
   const sources = [
     ...contexts.map(item => ({ type: 'url', label: item.title || item.url || normalizedUrl, ok: !item.error })),
     ...refs.map(item => ({ type: 'reference', label: item.originalName || item.id, ok: Boolean(item.visionData) }))
   ];
 
   let sourceAnalysis;
+  await reportAnalysisProgress(options, 2, 'Extracting verified product evidence');
   if (contexts.some(item => item.text) || refs.some(item => item.visionData)) {
     const fingerprint = postStudio.sourceFingerprint(
       normalizedUrl ? [normalizedUrl] : [],
@@ -100,12 +111,15 @@ async function analyzeCreativeFlow(userId, input) {
     sourceAnalysis = emptySourceAnalysis(input, sources);
   }
 
+  await reportAnalysisProgress(options, 3, 'Understanding positioning, audience and product meaning');
+
   if (!sourceAnalysis.productName && input.productName) {
     sourceAnalysis.productName = clean(input.productName, 160);
   }
 
   const context = contexts.find(item => !item.error) || contexts[0] || null;
   const brandPack = postStudio.buildBrandPack(context);
+  await reportAnalysisProgress(options, 4, 'Mapping brand, logo, colours and visual identity');
 
   return {
     sourceAnalysis,
