@@ -44,6 +44,7 @@ model User {
   socialProfiles          SocialProfile[]
   socialContents          SocialContent[]
   aiPostCampaigns         AiPostCampaign[]
+  creativeFlowProjects    CreativeFlowProject[]
 
   @@index([status])
   @@index([role])
@@ -425,6 +426,37 @@ model SocialPublication {
   @@index([profileId, scheduledAt])
   @@index([platform, status])
   @@index([externalPostId])
+}
+
+model CreativeFlowProject {
+  id                 String    @id @default(cuid())
+  userId             String
+  name               String
+  status             String    @default("DRAFT")
+  currentStage       String    @default("PROJECT_CREATED")
+  activeJobType      String?
+  activeJobId        String?
+  activeJobStartedAt DateTime?
+  progressCurrent    Int       @default(0)
+  progressTotal      Int       @default(0)
+  progressLabel      String?
+  productUrl         String?
+  workflowJson       String?
+  renderCampaignId   String?
+  handoffCampaignId  String?
+  lastError          String?
+  lastOpenedAt       DateTime  @default(now())
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([userId, status])
+  @@index([activeJobType])
+  @@index([renderCampaignId])
+  @@index([handoffCampaignId])
 }
 
 model AiPostCampaign {
