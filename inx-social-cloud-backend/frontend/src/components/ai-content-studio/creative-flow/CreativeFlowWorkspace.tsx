@@ -1135,11 +1135,9 @@ function CreativeFlowWorkspaceInner({
                           ? project.workflow.review.selectedPostIds.length
                             ? `${project.workflow.review.selectedPostIds.length} selected for scheduling`
                             : 'Review creatives'
-                          : project.workflow.strategyPlan
-                            ? 'Strategy ready'
-                            : project.currentStage === 'CAMPAIGN_READY'
-                              ? 'Campaign ready'
-                              : analysis ? 'Configure campaign' : 'Source setup'}
+                          : ['CAMPAIGN_READY', 'STRATEGY_READY'].includes(project.currentStage)
+                            ? 'Campaign ready'
+                            : analysis ? 'Configure campaign' : 'Source setup'}
             </span>
           </div>
           <p className="mt-1 truncate text-[10px] font-semibold">{project.name}</p>
