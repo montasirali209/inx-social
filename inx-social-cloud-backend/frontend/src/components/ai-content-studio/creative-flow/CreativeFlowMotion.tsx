@@ -17,13 +17,11 @@ export function CreativeFlowMotionSlot({
   state,
   riveSrc,
   stateMachine = 'CreativeFlow',
-  stateInput = 'state',
   className = '',
 }: {
   state: CreativeFlowMotionState
   riveSrc?: string | null
   stateMachine?: string
-  stateInput?: string
   className?: string
 }) {
   if (riveSrc) {
@@ -31,7 +29,6 @@ export function CreativeFlowMotionSlot({
       className={className}
       src={riveSrc}
       state={state}
-      stateInput={stateInput}
       stateMachine={stateMachine}
     />
   }
@@ -42,13 +39,11 @@ function RiveMotionAsset({
   className,
   src,
   state,
-  stateInput,
   stateMachine,
 }: {
   className: string
   src: string
   state: CreativeFlowMotionState
-  stateInput: string
   stateMachine: string
 }) {
   const { rive, RiveComponent } = useRive({
@@ -56,12 +51,11 @@ function RiveMotionAsset({
     stateMachines: stateMachine,
     autoplay: true,
   })
-  const input = useStateMachineInput(rive, stateMachine, stateInput)
+  const trigger = useStateMachineInput(rive, stateMachine, state)
 
   useEffect(() => {
-    if (!input) return
-    input.value = stateValue[state]
-  }, [input, state])
+    trigger?.fire()
+  }, [trigger, state])
 
   return <RiveComponent className={className} />
 }
