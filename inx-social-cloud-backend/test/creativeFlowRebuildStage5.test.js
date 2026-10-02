@@ -110,3 +110,19 @@ test('Stage 5 does not add another database model for review state', () => {
   assert.match(project, /workflowJson/);
   assert.match(project, /review: \{/);
 });
+
+
+test('Stage 5 persists generated creative and schedule node positions with the project canvas', () => {
+  const project = read('src/services/creativeFlowProjectService.js');
+  const controller = read('src/controllers/aiContentStudioController.js');
+  const api = read('frontend/src/lib/creative-flow-api.ts');
+  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
+
+  assert.match(project, /creativePositions: \{\}/);
+  assert.match(project, /schedulePosition: null/);
+  assert.match(project, /workflow\.canvas\.creativePositions/);
+  assert.match(controller, /creativePositions: z\.record\(creativeFlowPositionSchema\)/);
+  assert.match(api, /creativePositions: Record<string, \{ x: number; y: number \}>/);
+  assert.match(workspace, /node\.id\.startsWith\('creative:'\)/);
+  assert.match(workspace, /schedulePosition: byId\.get\('scheduleCampaign'\) \|\| null/);
+});
