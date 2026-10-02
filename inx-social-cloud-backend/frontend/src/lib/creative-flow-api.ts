@@ -182,6 +182,25 @@ export type CreativeFlowProject = {
     label: string | null
   }
   productUrl: string | null
+  workflow: {
+    version: number
+    source: {
+      websiteInput: string
+      normalizedUrl: string
+      referenceAssetIds: string[]
+      referenceNames: string[]
+    }
+    analysis: CreativeFlowAnalysis | null
+    canvas: {
+      positions: {
+        productUrl: { x: number; y: number }
+        productImages: { x: number; y: number }
+        analyzeProduct: { x: number; y: number }
+        productIntelligence: { x: number; y: number }
+      }
+      viewport: { x: number; y: number; zoom: number }
+    }
+  }
   renderCampaignId: string | null
   handoffCampaignId: string | null
   lastError: string | null
@@ -230,4 +249,53 @@ export function archiveCreativeFlowProject(projectId: string) {
     `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}`,
     { method: 'DELETE' },
   )
+}
+
+
+export function getCreativeFlowProject(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}`,
+    { cache: 'no-store' },
+  ).then((response) => response.project)
+}
+
+export function saveCreativeFlowProjectSource(projectId: string, input: {
+  website?: string
+  referenceAssetIds?: string[]
+  referenceNames?: string[]
+}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/source`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
+}
+
+export function analyzeCreativeFlowProject(projectId: string, input: {
+  website?: string
+  referenceAssetIds?: string[]
+  referenceNames?: string[]
+}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/analyze`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
+}
+
+export function saveCreativeFlowProjectCanvas(projectId: string, input: {
+  positions: Partial<Record<'productUrl' | 'productImages' | 'analyzeProduct' | 'productIntelligence', { x: number; y: number }>>
+  viewport?: { x: number; y: number; zoom: number }
+}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/canvas`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
 }

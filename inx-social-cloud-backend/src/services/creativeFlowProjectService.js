@@ -14,6 +14,81 @@ function clean(value, max = 160) {
   return String(value || '').replace(/\u0000/g, '').trim().slice(0, max);
 }
 
+function parseJson(value, fallback = {}) {
+  if (!value) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function cleanPosition(value, fallback) {
+  const source = value && typeof value === 'object' ? value : {};
+  const x = Number(source.x);
+  const y = Number(source.y);
+  return {
+    x: Number.isFinite(x) ? Math.max(-10000, Math.min(10000, x)) : fallback.x,
+    y: Number.isFinite(y) ? Math.max(-10000, Math.min(10000, y)) : fallback.y
+  };
+}
+
+function cleanViewport(value, fallback = { x: 0, y: 0, zoom: 1 }) {
+  const source = value && typeof value === 'object' ? value : {};
+  const x = Number(source.x);
+  const y = Number(source.y);
+  const zoom = Number(source.zoom);
+  return {
+    x: Number.isFinite(x) ? Math.max(-20000, Math.min(20000, x)) : fallback.x,
+    y: Number.isFinite(y) ? Math.max(-20000, Math.min(20000, y)) : fallback.y,
+    zoom: Number.isFinite(zoom) ? Math.max(0.25, Math.min(2.5, zoom)) : fallback.zoom
+  };
+}
+
+function defaultCanvas() {
+  return {
+    positions: {
+      productUrl: { x: 80, y: 120 },
+      productImages: { x: 80, y: 390 },
+      analyzeProduct: { x: 470, y: 255 },
+      productIntelligence: { x: 850, y: 225 }
+    },
+    viewport: { x: 0, y: 0, zoom: 1 }
+  };
+}
+
+function normalizeWorkflow(value) {
+  const input = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const defaults = defaultCanvas();
+  const positions = input.canvas?.positions && typeof input.canvas.positions === 'object'
+    ? input.canvas.positions
+    : {};
+  return {
+    version: Math.max(2, Number(input.version || 2)),
+    source: {
+      websiteInput: clean(input.source?.websiteInput, 2000),
+      normalizedUrl: clean(input.source?.normalizedUrl, 2000),
+      referenceAssetIds: (Array.isArray(input.source?.referenceAssetIds) ? input.source.referenceAssetIds : [])
+        .map(value => clean(value, 120)).filter(Boolean).slice(0, 8),
+      referenceNames: (Array.isArray(input.source?.referenceNames) ? input.source.referenceNames : [])
+        .map(value => clean(value, 220)).filter(Boolean).slice(0, 8)
+    },
+    analysis: input.analysis && typeof input.analysis === 'object' && !Array.isArray(input.analysis)
+      ? input.analysis
+      : null,
+    canvas: {
+      positions: {
+        productUrl: cleanPosition(positions.productUrl, defaults.positions.productUrl),
+        productImages: cleanPosition(positions.productImages, defaults.positions.productImages),
+        analyzeProduct: cleanPosition(positions.analyzeProduct, defaults.positions.analyzeProduct),
+        productIntelligence: cleanPosition(positions.productIntelligence, defaults.positions.productIntelligence)
+      },
+      viewport: cleanViewport(input.canvas?.viewport, defaults.viewport)
+    }
+  };
+}
+
 function projectView(project) {
   if (!project) return null;
   return {
@@ -28,6 +103,7 @@ function projectView(project) {
       label: project.progressLabel || null
     },
     productUrl: project.productUrl || null,
+    workflow: normalizeWorkflow(parseJson(project.workflowJson, {})),
     renderCampaignId: project.renderCampaignId || null,
     handoffCampaignId: project.handoffCampaignId || null,
     lastError: project.lastError || null,
@@ -62,6 +138,7 @@ async function createProject(userId, name) {
       progressCurrent: 0,
       progressTotal: 0,
       progressLabel: null,
+      workflowJson: JSON.stringify(normalizeWorkflow({})),
       lastOpenedAt: new Date()
     }
   });
@@ -74,6 +151,10 @@ async function requireProject(userId, projectId) {
   });
   if (!project) throw publicError('Creative Flow project not found.', 'CREATIVE_FLOW_PROJECT_NOT_FOUND', 404);
   return project;
+}
+
+async function getProject(userId, projectId) {
+  return projectView(await requireProject(userId, projectId));
 }
 
 async function openProject(userId, projectId) {
@@ -205,9 +286,67 @@ async function releaseActiveJob(userId, projectId, input = {}) {
   return projectView(updated);
 }
 
+async function saveProductSource(userId, projectId, input = {}) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  workflow.source = {
+    websiteInput: clean(input.websiteInput, 2000),
+    normalizedUrl: clean(input.normalizedUrl, 2000),
+    referenceAssetIds: (Array.isArray(input.referenceAssetIds) ? input.referenceAssetIds : [])
+      .map(value => clean(value, 120)).filter(Boolean).slice(0, 8),
+    referenceNames: (Array.isArray(input.referenceNames) ? input.referenceNames : [])
+      .map(value => clean(value, 220)).filter(Boolean).slice(0, 8)
+  };
+  workflow.analysis = null;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      productUrl: workflow.source.normalizedUrl || null,
+      workflowJson: JSON.stringify(workflow),
+      updatedAt: new Date()
+    }
+  });
+  return projectView(updated);
+}
+
+async function saveProductAnalysis(userId, projectId, analysis) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  workflow.analysis = analysis && typeof analysis === 'object' ? analysis : null;
+  if (analysis?.analysedUrl?.url) workflow.source.normalizedUrl = clean(analysis.analysedUrl.url, 2000);
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      productUrl: workflow.source.normalizedUrl || project.productUrl || null,
+      workflowJson: JSON.stringify(workflow),
+      updatedAt: new Date()
+    }
+  });
+  return projectView(updated);
+}
+
+async function saveCanvasState(userId, projectId, input = {}) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  const positions = input.positions && typeof input.positions === 'object' ? input.positions : {};
+  workflow.canvas.positions = {
+    productUrl: cleanPosition(positions.productUrl, workflow.canvas.positions.productUrl),
+    productImages: cleanPosition(positions.productImages, workflow.canvas.positions.productImages),
+    analyzeProduct: cleanPosition(positions.analyzeProduct, workflow.canvas.positions.analyzeProduct),
+    productIntelligence: cleanPosition(positions.productIntelligence, workflow.canvas.positions.productIntelligence)
+  };
+  workflow.canvas.viewport = cleanViewport(input.viewport, workflow.canvas.viewport);
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: { workflowJson: JSON.stringify(workflow), updatedAt: new Date() }
+  });
+  return projectView(updated);
+}
+
 module.exports = {
   listProjects,
   createProject,
+  getProject,
   openProject,
   renameProject,
   archiveProject,
@@ -215,5 +354,10 @@ module.exports = {
   claimActiveJob,
   updateActiveJob,
   releaseActiveJob,
-  projectView
+  saveProductSource,
+  saveProductAnalysis,
+  saveCanvasState,
+  projectView,
+  normalizeWorkflow,
+  publicError
 };

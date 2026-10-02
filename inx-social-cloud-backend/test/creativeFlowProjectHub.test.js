@@ -52,7 +52,7 @@ test('Creative Flow Project Hub uses authenticated project CRUD APIs', () => {
   assert.match(api, /archiveCreativeFlowProject/);
 });
 
-test('Project Hub stays INXSocial-native and does not start the motion canvas early', () => {
+test('Project Hub stays INXSocial-native while motion runtime stays inside an opened project', () => {
   const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
   const hub = read('frontend/src/components/ai-content-studio/CreativeFlowProjectHubModal.tsx');
 
@@ -64,7 +64,7 @@ test('Project Hub stays INXSocial-native and does not start the motion canvas ea
   assert.match(hub, /New project/);
   assert.match(hub, /Name your project/);
   assert.match(hub, /Only one Creative Flow AI job can actively process at a time/);
-  assert.match(hub, /Project persistence is ready/);
+  assert.match(hub, /CreativeFlowWorkspace/);
   assert.doesNotMatch(hub, /@rive-app|gsap|@xyflow\/react/);
 });
 
