@@ -1,4 +1,12 @@
 import type { BlogArticle, BlogArticleSummary, BlogSitemapEntry } from "../types";
+import {
+  getChatEditorialArticleBySlug,
+  getChatEditorialArticles,
+  getChatEditorialArticlesByTag,
+  getChatEditorialSitemapEntries,
+  mergeBlogArticles,
+  mergeBlogSitemapEntries,
+} from "./chat-editorial";
 
 export const BLOG_REVALIDATE_SECONDS = 300;
 
@@ -33,11 +41,20 @@ class INXGrowthContentClient {
   }
 
   async getAllArticles(_options: AllArticlesOptions = {}): Promise<BlogArticleSummary[]> {
-    const payload = await this.request<{ articles: BlogArticleSummary[] }>("/articles");
-    return payload.articles || [];
+    const local = getChatEditorialArticles();
+    try {
+      const payload = await this.request<{ articles: BlogArticleSummary[] }>("/articles");
+      return mergeBlogArticles(payload.articles || [], local);
+    } catch (error) {
+      if (local.length) return local;
+      throw error;
+    }
   }
 
   async getArticleBySlug(slug: string): Promise<BlogArticle | null> {
+    const local = getChatEditorialArticleBySlug(slug);
+    if (local) return local;
+
     const response = await fetch(
       this.baseUrl + "/api/growth-content/articles/" + encodeURIComponent(slug),
       {
@@ -53,15 +70,27 @@ class INXGrowthContentClient {
   }
 
   async getArticlesByTag(tag: string): Promise<BlogArticleSummary[]> {
-    const payload = await this.request<{ articles: BlogArticleSummary[] }>(
-      "/articles?tag=" + encodeURIComponent(tag),
-    );
-    return payload.articles || [];
+    const local = getChatEditorialArticlesByTag(tag);
+    try {
+      const payload = await this.request<{ articles: BlogArticleSummary[] }>(
+        "/articles?tag=" + encodeURIComponent(tag),
+      );
+      return mergeBlogArticles(payload.articles || [], local);
+    } catch (error) {
+      if (local.length) return local;
+      throw error;
+    }
   }
 
   async getSitemapEntries(): Promise<BlogSitemapEntry[]> {
-    const payload = await this.request<{ entries: BlogSitemapEntry[] }>("/sitemap");
-    return payload.entries || [];
+    const local = getChatEditorialSitemapEntries();
+    try {
+      const payload = await this.request<{ entries: BlogSitemapEntry[] }>("/sitemap");
+      return mergeBlogSitemapEntries(payload.entries || [], local);
+    } catch (error) {
+      if (local.length) return local;
+      throw error;
+    }
   }
 }
 
