@@ -4,15 +4,6 @@ import { useEffect, useRef } from 'react'
 
 export type CreativeFlowMotionState = 'idle' | 'hover' | 'working' | 'success' | 'error' | 'selected'
 
-const stateValue: Record<CreativeFlowMotionState, number> = {
-  idle: 0,
-  hover: 1,
-  working: 2,
-  success: 3,
-  error: 4,
-  selected: 5,
-}
-
 export function CreativeFlowMotionSlot({
   state,
   riveSrc,
