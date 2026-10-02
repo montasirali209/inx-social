@@ -43,8 +43,8 @@ test('Stage 2 begins with only product URL, product images and analyse controls 
   assert.match(workspace, /id: 'analysisBrand'/);
   assert.match(workspace, /type: 'analysisStep'/);
   assert.match(workspace, /id: 'productIntelligence'/);
-  assert.match(workspace, /if \(campaignConfigured\(project\)\)/);
-  assert.match(workspace, /if \(project\.workflow\.strategyPlan\)/);
+  assert.doesNotMatch(workspace, /id: 'creativeStrategy'/);
+  assert.doesNotMatch(workspace, /id: 'generateCreatives'/);
   assert.doesNotMatch(workspace, /id: 'analysisProcess'/);
 });
 
@@ -109,7 +109,7 @@ test('Stage 2 analysis nodes reveal progressively and converge into Product Inte
   assert.match(workspace, /ANALYSIS_STEPS\.slice\(0, visibleStepCount\)/);
   assert.match(workspace, /source: step\.id[\s\S]*target: 'productIntelligence'/);
   assert.match(workspace, /BaseEdge/);
-  assert.match(workspace, /strokeWidth: active \? 2\.8 : 2\.1/);
+  assert.match(workspace, /strokeWidth: active \? 3 : 2\.35/);
   assert.match(runtime, /progressTotal: 5/);
   assert.match(service, /reportAnalysisProgress/);
   assert.match(service, /Product sources collected and validated/);

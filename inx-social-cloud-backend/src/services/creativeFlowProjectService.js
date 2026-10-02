@@ -486,6 +486,8 @@ async function updateActiveJob(userId, projectId, input = {}) {
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
     data: {
+      activeJobType: input.jobType == null ? undefined : clean(input.jobType, 80),
+      activeJobId: input.jobId == null ? undefined : (clean(input.jobId, 160) || null),
       progressCurrent: input.progressCurrent == null ? undefined : Math.max(0, Number(input.progressCurrent || 0)),
       progressTotal: input.progressTotal == null ? undefined : Math.max(0, Number(input.progressTotal || 0)),
       progressLabel: input.progressLabel == null ? undefined : clean(input.progressLabel, 240),

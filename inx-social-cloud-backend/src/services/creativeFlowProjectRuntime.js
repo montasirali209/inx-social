@@ -145,7 +145,8 @@ async function startProductAnalysis(userId, projectId, input = {}) {
 
 async function processStrategyPlanning(userId, projectId) {
   const project = await projects.getProject(userId, projectId);
-  if (!project || project.activeJobType !== 'STRATEGY_PLANNING') return;
+  if (!project || !['STRATEGY_PLANNING', 'CAMPAIGN_GENERATION'].includes(project.activeJobType)) return;
+  const autoGenerate = project.activeJobType === 'CAMPAIGN_GENERATION';
 
   try {
     const analysis = project.workflow?.analysis;
@@ -182,6 +183,19 @@ async function processStrategyPlanning(userId, projectId) {
       progressLabel: `Planning ${plan.concepts.length} distinct creative concepts`
     });
     await projects.saveStrategyPlan(userId, projectId, plan);
+
+    if (autoGenerate) {
+      await projects.updateActiveJob(userId, projectId, {
+        jobType: 'CREATIVE_RENDER',
+        currentStage: 'CREATIVE_RENDER_STARTING',
+        progressCurrent: 0,
+        progressTotal: plan.concepts.length,
+        progressLabel: 'Campaign plan ready · starting creative generation'
+      });
+      queueRenderStart(userId, projectId);
+      return;
+    }
+
     await projects.releaseActiveJob(userId, projectId, {
       status: 'WAITING',
       currentStage: 'STRATEGY_READY',
@@ -239,21 +253,64 @@ async function startStrategyPlanning(userId, projectId) {
   return claimed;
 }
 
-async function generationEstimate(userId, projectId) {
+async function generationEstimate(userId, projectId, countOverride = null) {
   const project = await projects.getProject(userId, projectId);
   const concepts = Array.isArray(project.workflow?.strategyPlan?.concepts)
     ? project.workflow.strategyPlan.concepts
     : [];
   const selected = new Set(project.workflow?.selectedConceptSequences || []);
-  const count = concepts.filter(concept => selected.has(Number(concept.sequence))).length;
+  const selectedCount = concepts.filter(concept => selected.has(Number(concept.sequence))).length;
+  const setupCount = Math.max(1, Math.min(50, Number(project.workflow?.campaignSetup?.creativeCount || 0)));
+  const requestedCount = countOverride == null
+    ? 0
+    : Math.max(1, Math.min(50, Number(countOverride || 0)));
+  const count = requestedCount || selectedCount || setupCount;
   if (!count) {
     throw projects.publicError(
-      'Keep at least one strategy concept before generation.',
-      'CREATIVE_FLOW_CONCEPT_SELECTION_REQUIRED',
+      'Choose how many campaign creatives to generate.',
+      'CREATIVE_FLOW_CREATIVE_COUNT_REQUIRED',
       400
     );
   }
   return creativeFlow.estimateCreativeFlowRender(userId, count);
+}
+
+async function startCampaignGeneration(userId, projectId) {
+  const project = await projects.getProject(userId, projectId);
+  if (project.renderCampaignId) {
+    throw projects.publicError(
+      'This campaign has already started generating.',
+      'CREATIVE_FLOW_UPSTREAM_LOCKED',
+      409
+    );
+  }
+  const setup = project.workflow?.campaignSetup;
+  if (!project.workflow?.analysis || !setup?.platforms?.length) {
+    throw projects.publicError(
+      'Complete Product Intelligence and Campaign Setup before generating.',
+      'CREATIVE_FLOW_CAMPAIGN_SETUP_REQUIRED',
+      409
+    );
+  }
+
+  const estimate = await generationEstimate(userId, projectId, setup.creativeCount);
+  if (!estimate.canGenerate) {
+    throw projects.publicError(
+      `This campaign needs ${estimate.requiredCredits} AI credits, but only ${estimate.creditsRemaining} credits remain.`,
+      'CREATIVE_FLOW_CREDITS_INSUFFICIENT',
+      402
+    );
+  }
+
+  const claimed = await projects.claimActiveJob(userId, projectId, {
+    jobType: 'CAMPAIGN_GENERATION',
+    currentStage: 'STRATEGY_PLANNING',
+    progressCurrent: 0,
+    progressTotal: setup.creativeCount,
+    progressLabel: 'Preparing your campaign for generation'
+  });
+  queueStrategyPlanning(userId, projectId);
+  return claimed;
 }
 
 async function recoverLinkedCampaign(userId, projectId) {
@@ -600,7 +657,7 @@ async function startCreativeFlowProjectRuntime() {
     const pending = await prisma.creativeFlowProject.findMany({
       where: {
         archivedAt: null,
-        activeJobType: { in: ['PRODUCT_ANALYSIS', 'STRATEGY_PLANNING', 'CREATIVE_RENDER', 'CREATIVE_REGENERATE'] }
+        activeJobType: { in: ['PRODUCT_ANALYSIS', 'STRATEGY_PLANNING', 'CAMPAIGN_GENERATION', 'CREATIVE_RENDER', 'CREATIVE_REGENERATE'] }
       },
       select: { id: true, userId: true, activeJobType: true, activeJobId: true, renderCampaignId: true },
       orderBy: { activeJobStartedAt: 'asc' },
@@ -610,7 +667,7 @@ async function startCreativeFlowProjectRuntime() {
     pending.forEach(project => {
       if (project.activeJobType === 'PRODUCT_ANALYSIS') {
         queueProductAnalysis(project.userId, project.id);
-      } else if (project.activeJobType === 'STRATEGY_PLANNING') {
+      } else if (['STRATEGY_PLANNING', 'CAMPAIGN_GENERATION'].includes(project.activeJobType)) {
         queueStrategyPlanning(project.userId, project.id);
       } else if (project.activeJobType === 'CREATIVE_RENDER') {
         if (project.renderCampaignId) queueRenderMonitor(project.userId, project.id, project.renderCampaignId, 500);
@@ -640,6 +697,7 @@ module.exports = {
   processStrategyPlanning,
   queueStrategyPlanning,
   generationEstimate,
+  startCampaignGeneration,
   startGeneration,
   retryMissingGeneration,
   processRenderStart,

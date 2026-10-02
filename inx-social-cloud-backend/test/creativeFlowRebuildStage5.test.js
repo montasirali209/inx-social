@@ -11,7 +11,7 @@ test('Stage 5 expands completed renders into individual progressive creative chi
 
   assert.match(workspace, /function buildReviewGraph/);
   assert.match(workspace, /type: 'creativeAsset'/);
-  assert.match(workspace, /source: 'generateCreatives'/);
+  assert.match(workspace, /source: 'productIntelligence'/);
   assert.match(workspace, /revealedPostIds/);
   assert.match(workspace, /revealScheduledRef/);
   assert.match(workspace, /index \* 190/);

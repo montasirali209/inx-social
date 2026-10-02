@@ -490,7 +490,18 @@ async function saveCreativeFlowStrategySelection(req, res, next) {
 
 async function getCreativeFlowGenerationEstimate(req, res, next) {
   try {
-    res.json(await creativeFlowProjectRuntime.generationEstimate(req.user.id, req.params.projectId));
+    const count = req.query?.count == null ? null : Number(req.query.count);
+    res.json(await creativeFlowProjectRuntime.generationEstimate(req.user.id, req.params.projectId, count));
+  } catch (error) { next(error); }
+}
+
+async function generateCreativeFlowCampaign(req, res, next) {
+  try {
+    const input = creativeFlowCampaignSetupSchema.parse(req.body || {});
+    await creativeFlowProjectService.saveCampaignSetup(req.user.id, req.params.projectId, input);
+    res.status(202).json({
+      project: await creativeFlowProjectRuntime.startCampaignGeneration(req.user.id, req.params.projectId)
+    });
   } catch (error) { next(error); }
 }
 
@@ -765,7 +776,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, startCreativeFlowStrategy, saveCreativeFlowStrategySelection, getCreativeFlowGenerationEstimate, startCreativeFlowGeneration, saveCreativeFlowReviewSelection, saveCreativeFlowReviewReveal, retryCreativeFlowMissing, regenerateCreativeFlowProjectPost, removeCreativeFlowProjectPost, handoffCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject, restoreCreativeFlowProject,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, startCreativeFlowStrategy, saveCreativeFlowStrategySelection, getCreativeFlowGenerationEstimate, generateCreativeFlowCampaign, startCreativeFlowGeneration, saveCreativeFlowReviewSelection, saveCreativeFlowReviewReveal, retryCreativeFlowMissing, regenerateCreativeFlowProjectPost, removeCreativeFlowProjectPost, handoffCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject, restoreCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };

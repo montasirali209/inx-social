@@ -6,15 +6,14 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Stage 3 keeps Campaign Setup inside Product Intelligence instead of growing another node', () => {
+test('Stage 3 keeps the entire campaign decision inside Product Intelligence', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
   assert.match(workspace, /function ProductIntelligenceNode/);
-  assert.match(workspace, /Campaign Setup/);
-  assert.match(workspace, /Set up this campaign/);
+  assert.match(workspace, />Campaign</);
   assert.match(workspace, /campaign-setup-inline/);
-  assert.match(workspace, /Campaign setup saved/);
-  assert.match(workspace, /Creative Strategy can now grow from this same Product Intelligence node/);
+  assert.match(workspace, /Generate Campaign/);
+  assert.match(workspace, /Calculating campaign credits/);
   assert.doesNotMatch(workspace, /id: 'campaignSetup'/);
   assert.doesNotMatch(workspace, /function CampaignSetupNode/);
 });
@@ -30,7 +29,7 @@ test('Stage 3 campaign controls live inside the node instead of a sidebar', () =
   assert.match(workspace, /Audience direction/);
   assert.match(workspace, /\[5, 10, 20, 50\]/);
   assert.match(workspace, /Custom creative count/);
-  assert.match(workspace, /saveCreativeFlowCampaignSetup/);
+  assert.match(workspace, /generateCreativeFlowCampaign/);
   assert.match(workspace, /There is no settings sidebar/);
 });
 
@@ -78,5 +77,6 @@ test('Stage 3 continues to use the motion system rather than introducing a separ
   assert.match(workspace, /CreativeFlowMotionSlot/);
   assert.match(workspace, /gsap\.fromTo/);
   assert.match(workspace, /MotionEdge/);
-  assert.match(workspace, /source: 'productIntelligence'[\s\S]*target: 'creativeStrategy'/);
+  assert.match(workspace, /defaultEdgeOptions=\{\{ zIndex: 6 \}\}/);
+  assert.match(workspace, /source: 'productIntelligence'[\s\S]*target: creativeNodeId\(post\.id\)/);
 });

@@ -34,13 +34,11 @@ import {
   Images,
   Loader2,
   Pencil,
-  Layers3,
   Maximize2,
   RefreshCw,
   Rocket,
   ScanSearch,
   Sparkles,
-  Target,
   Trash2,
   UploadCloud,
   X,
@@ -60,11 +58,11 @@ import {
 import { uploadPostStudioReference } from '../../../lib/ai-post-studio-api'
 import {
   analyzeCreativeFlowProject,
+  generateCreativeFlowCampaign,
   getCreativeFlowGenerationEstimate,
   getCreativeFlowProject,
   getCreativeFlowRender,
   handoffCreativeFlowProject,
-  saveCreativeFlowCampaignSetup,
   saveCreativeFlowProjectCanvas,
   saveCreativeFlowProjectSource,
   saveCreativeFlowReviewReveal,
@@ -134,7 +132,7 @@ type WorkspaceContextValue = {
   setCreativeCount: (value: number) => void
   setCreativeStyle: (value: string) => void
   setCampaignAudience: (value: string) => void
-  saveCampaignSetup: () => void
+  generateCampaign: () => void
   startStrategy: () => void
   toggleStrategyConcept: (sequence: number) => void
   startGeneration: () => void
@@ -178,20 +176,6 @@ function displayDomain(value: string) {
   } catch {
     return value
   }
-}
-
-function campaignConfigured(project: CreativeFlowProject) {
-  return Boolean(project.workflow.strategyPlan || project.renderCampaignId) || [
-    'CAMPAIGN_READY',
-    'STRATEGY_PLANNING',
-    'STRATEGY_READY',
-    'STRATEGY_FAILED',
-    'CREATIVE_RENDER_STARTING',
-    'CREATIVE_RENDER_RUNNING',
-    'CREATIVE_RENDER_FAILED',
-    'RENDER_READY',
-    'RENDER_PARTIAL',
-  ].includes(project.currentStage)
 }
 
 function renderFinished(project: CreativeFlowProject) {
@@ -257,24 +241,6 @@ function productIntelligencePosition(project: CreativeFlowProject) {
   }
 }
 
-function creativeStrategyPosition(project: CreativeFlowProject) {
-  const product = productIntelligencePosition(project)
-  const saved = project.workflow.canvas.positions.creativeStrategy
-  return {
-    x: Math.max(saved.x, product.x + 500),
-    y: saved.y,
-  }
-}
-
-function generateCreativesPosition(project: CreativeFlowProject) {
-  const strategy = creativeStrategyPosition(project)
-  const saved = project.workflow.canvas.positions.generateCreatives
-  return {
-    x: Math.max(saved.x, strategy.x + 470),
-    y: saved.y,
-  }
-}
-
 function focusNodeIds(project: CreativeFlowProject) {
   const processIds = ANALYSIS_STEPS.slice(0, analysisStepCount(project)).map((step) => step.id)
   if (project.activeJobType === 'PRODUCT_ANALYSIS' || project.currentStage === 'PRODUCT_ANALYSIS_RUNNING') {
@@ -283,31 +249,12 @@ function focusNodeIds(project: CreativeFlowProject) {
   if (!project.workflow.analysis) {
     return ['productUrl', 'productImages', 'analyzeProduct', ...processIds]
   }
-  if (project.currentStage === 'PRODUCT_READY' && !campaignConfigured(project)) {
-    return ['analyzeProduct', ...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
-  }
-  if (
-    project.activeJobType === 'STRATEGY_PLANNING' ||
-    ['CAMPAIGN_READY', 'STRATEGY_PLANNING', 'STRATEGY_FAILED'].includes(project.currentStage)
-  ) {
-    return ['productIntelligence', 'creativeStrategy']
-  }
   if (project.workflow.review.revealedPostIds.length) {
     return [
-      'generateCreatives',
+      'productIntelligence',
       ...project.workflow.review.revealedPostIds.map((id) => creativeNodeId(id)),
       ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
     ]
-  }
-  if (
-    project.workflow.strategyPlan &&
-    (
-      project.activeJobType === 'CREATIVE_RENDER' ||
-      project.renderCampaignId ||
-      ['STRATEGY_READY', 'CREATIVE_RENDER_STARTING', 'CREATIVE_RENDER_RUNNING', 'CREATIVE_RENDER_FAILED', 'RENDER_READY', 'RENDER_PARTIAL'].includes(project.currentStage)
-    )
-  ) {
-    return ['creativeStrategy', 'generateCreatives']
   }
   return [...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
 }
@@ -317,21 +264,21 @@ function creativeNodeId(postId: string) {
 }
 
 function creativeNodePosition(project: CreativeFlowProject, _postId: string, index: number) {
-  const base = generateCreativesPosition(project)
+  const base = productIntelligencePosition(project)
   const column = index % 4
   const row = Math.floor(index / 4)
   return {
-    x: base.x + 430 + (column * 340),
-    y: base.y - 420 + (row * 480),
+    x: base.x + 520 + (column * 340),
+    y: base.y - 390 + (row * 480),
   }
 }
 
 function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
-  const base = generateCreativesPosition(project)
+  const base = productIntelligencePosition(project)
   const columns = Math.max(1, Math.min(4, Math.max(creativeCount, 1)))
   return {
-    x: base.x + 430 + (columns * 340) + 390,
-    y: base.y - 40,
+    x: base.x + 520 + (columns * 340) + 390,
+    y: base.y - 20,
   }
 }
 
@@ -359,9 +306,10 @@ function buildReviewGraph(
 
   const edges: Stage2Edge[] = visiblePosts.map((post) => ({
     id: `generate-${post.id}`,
-    source: 'generateCreatives',
+    source: 'productIntelligence',
     target: creativeNodeId(post.id),
     type: 'motion',
+    zIndex: 6,
     data: {
       active: project.activeJobType === 'CREATIVE_REGENERATE' && project.activeJobId === post.id,
       complete: Boolean(post.mediaAssetId),
@@ -383,6 +331,7 @@ function buildReviewGraph(
         source: creativeNodeId(post.id),
         target: 'scheduleCampaign',
         type: 'motion',
+        zIndex: 6,
         data: { active: true, complete: Boolean(project.handoffCampaignId) },
       })
     })
@@ -421,24 +370,6 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
       data: {},
       draggable: true,
     })
-    if (campaignConfigured(project)) {
-      nodes.push({
-        id: 'creativeStrategy',
-        type: 'creativeStrategy',
-        position: creativeStrategyPosition(project),
-        data: {},
-        draggable: true,
-      })
-    }
-    if (project.workflow.strategyPlan) {
-      nodes.push({
-        id: 'generateCreatives',
-        type: 'generateCreatives',
-        position: generateCreativesPosition(project),
-        data: {},
-        draggable: true,
-      })
-    }
   }
 
   return nodes
@@ -456,6 +387,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'productUrl',
       target: 'analyzeProduct',
       type: 'motion',
+      zIndex: 6,
       data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
     {
@@ -463,6 +395,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'productImages',
       target: 'analyzeProduct',
       type: 'motion',
+      zIndex: 6,
       data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
   ]
@@ -474,6 +407,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'analyzeProduct',
       target: first.id,
       type: 'motion',
+      zIndex: 6,
       data: { active: running && currentProgress <= 1, complete: analysisReady || currentProgress > 1 },
     })
 
@@ -485,6 +419,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
         source: previous.id,
         target: step.id,
         type: 'motion',
+        zIndex: 6,
         data: {
           active: running && currentProgress === index + 1,
           complete: analysisReady || currentProgress > index + 1,
@@ -500,33 +435,10 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
         source: step.id,
         target: 'productIntelligence',
         type: 'motion',
+        zIndex: 6,
         data: { active: false, complete: true },
       })
     })
-
-    const campaignReady = campaignConfigured(project)
-    const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
-    const strategyReady = Boolean(project.workflow.strategyPlan)
-    const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
-
-    if (campaignReady) {
-      edges.push({
-        id: 'intelligence-strategy',
-        source: 'productIntelligence',
-        target: 'creativeStrategy',
-        type: 'motion',
-        data: { active: strategyRunning, complete: strategyReady },
-      })
-    }
-    if (strategyReady) {
-      edges.push({
-        id: 'strategy-generate',
-        source: 'creativeStrategy',
-        target: 'generateCreatives',
-        type: 'motion',
-        data: { active: renderRunning, complete: renderFinished(project) },
-      })
-    }
   }
 
   return edges
@@ -628,16 +540,15 @@ function CreativeFlowWorkspaceInner({
 
   const analysis = project.workflow.analysis
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
-  const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
+  const strategyRunning = ['STRATEGY_PLANNING', 'CAMPAIGN_GENERATION'].includes(project.activeJobType || '')
   const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
   const anyJobRunning = Boolean(project.activeJobType)
   const blockedByAnother = Boolean(activeProject && activeProject.id !== project.id && activeProject.activeJobType)
-  const selectedSequences = project.workflow.selectedConceptSequences
   const generationEstimateQuery = useQuery({
-    queryKey: ['creative-flow-generation-estimate', project.id, selectedSequences.join(',')],
-    queryFn: () => getCreativeFlowGenerationEstimate(project.id),
-    enabled: Boolean(project.workflow.strategyPlan && selectedSequences.length && !project.renderCampaignId && !renderRunning),
-    staleTime: 5_000,
+    queryKey: ['creative-flow-generation-estimate', project.id, creativeCount],
+    queryFn: () => getCreativeFlowGenerationEstimate(project.id, creativeCount),
+    enabled: Boolean(analysis && !project.renderCampaignId && !project.activeJobType),
+    staleTime: 3_000,
     retry: false,
   })
   const renderCampaignQuery = useQuery({
@@ -727,7 +638,7 @@ function CreativeFlowWorkspaceInner({
         if (project.activeJobType === 'CREATIVE_RENDER' || (restoredReview && index === additions.length - 1)) {
           window.setTimeout(() => {
             const focusIds = [
-              'generateCreatives',
+              'productIntelligence',
               creativeNodeId(post.id),
               ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
             ]
@@ -891,16 +802,20 @@ function CreativeFlowWorkspaceInner({
     }
   }, [blockedByAnother, flow, persistSource, project, running, sourceBusy, updateCachedProject, urlDraft])
 
-  const saveCampaign = useCallback(async () => {
-    if (campaignBusy || anyJobRunning || !analysis) return
+  const generateCampaign = useCallback(async () => {
+    if (campaignBusy || anyJobRunning || blockedByAnother || !analysis || project.renderCampaignId) return
     if (!campaignPlatforms.length) {
       setError('Choose at least one platform for this campaign.')
+      return
+    }
+    if (generationEstimateQuery.data && !generationEstimateQuery.data.canGenerate) {
+      setError(`This campaign needs ${generationEstimateQuery.data.requiredCredits} AI credits, but only ${generationEstimateQuery.data.creditsRemaining} are available.`)
       return
     }
     setCampaignBusy(true)
     setError('')
     try {
-      const next = await saveCreativeFlowCampaignSetup(project.id, {
+      const next = await generateCreativeFlowCampaign(project.id, {
         goal: campaignGoal,
         platforms: campaignPlatforms,
         creativeCount,
@@ -911,11 +826,11 @@ function CreativeFlowWorkspaceInner({
       setCampaignExpanded(false)
       setAdvancedExpanded(false)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Creative Flow could not save this campaign setup.')
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not start this campaign.')
     } finally {
       setCampaignBusy(false)
     }
-  }, [analysis, anyJobRunning, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, project.id, updateCachedProject])
+  }, [analysis, anyJobRunning, blockedByAnother, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, generationEstimateQuery.data, project.id, project.renderCampaignId, updateCachedProject])
 
   const startStrategy = useCallback(async () => {
     if (strategyBusy || anyJobRunning || blockedByAnother) return
@@ -1055,7 +970,7 @@ function CreativeFlowWorkspaceInner({
       await queryClient.invalidateQueries({ queryKey: ['creative-flow-render', project.renderCampaignId] })
       window.setTimeout(() => {
         void flow.fitView({
-          nodes: [{ id: 'generateCreatives' }, { id: creativeNodeId(postId) }],
+          nodes: [{ id: 'productIntelligence' }, { id: creativeNodeId(postId) }],
           padding: 0.28,
           duration: 580,
           maxZoom: 1.08,
@@ -1164,7 +1079,7 @@ function CreativeFlowWorkspaceInner({
     setCreativeCount,
     setCreativeStyle,
     setCampaignAudience,
-    saveCampaignSetup: () => void saveCampaign(),
+    generateCampaign: () => void generateCampaign(),
     startStrategy: () => void startStrategy(),
     toggleStrategyConcept: (sequence) => void toggleStrategyConcept(sequence),
     startGeneration: () => void startGeneration(),
@@ -1179,7 +1094,7 @@ function CreativeFlowWorkspaceInner({
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, generateCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
@@ -1191,7 +1106,7 @@ function CreativeFlowWorkspaceInner({
               {running
                 ? 'Analysing product'
                 : strategyRunning
-                  ? 'Planning strategy'
+                  ? 'Preparing campaign'
                   : project.activeJobType === 'CREATIVE_REGENERATE'
                     ? 'Regenerating creative'
                     : renderRunning
@@ -1202,11 +1117,9 @@ function CreativeFlowWorkspaceInner({
                           ? project.workflow.review.selectedPostIds.length
                             ? `${project.workflow.review.selectedPostIds.length} selected for scheduling`
                             : 'Review creatives'
-                          : project.workflow.strategyPlan
-                            ? 'Strategy ready'
-                            : project.currentStage === 'CAMPAIGN_READY'
-                              ? 'Campaign ready'
-                              : analysis ? 'Configure campaign' : 'Source setup'}
+                          : ['CAMPAIGN_READY', 'STRATEGY_READY'].includes(project.currentStage)
+                            ? 'Campaign ready'
+                            : analysis ? 'Configure campaign' : 'Source setup'}
             </span>
           </div>
           <p className="mt-1 truncate text-[10px] font-semibold">{project.name}</p>
@@ -1226,6 +1139,7 @@ function CreativeFlowWorkspaceInner({
       <ReactFlow
         colorMode="light"
         defaultViewport={project.workflow.canvas.viewport}
+        defaultEdgeOptions={{ zIndex: 6 }}
         edgeTypes={edgeTypes}
         edges={edges}
         fitView={!project.workflow.canvas.viewport.zoom}
@@ -1439,6 +1353,10 @@ function ProductIntelligenceNode(props: NodeProps) {
     campaignExpanded,
     advancedExpanded,
     campaignBusy,
+    generationEstimate,
+    generationEstimateLoading,
+    renderCampaign,
+    retryMissingBusy,
     campaignGoal,
     campaignPlatforms,
     creativeCount,
@@ -1451,11 +1369,18 @@ function ProductIntelligenceNode(props: NodeProps) {
     setCreativeCount,
     setCreativeStyle,
     setCampaignAudience,
-    saveCampaignSetup,
+    generateCampaign,
+    retryMissingCreatives,
   } = useWorkspace()
   const ref = useRef<HTMLDivElement>(null)
-  const ready = campaignConfigured(project)
-  const locked = Boolean(project.activeJobType)
+  const campaignRunning = ['CAMPAIGN_GENERATION', 'CREATIVE_RENDER'].includes(project.activeJobType || '')
+  const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
+  const finished = renderFinished(project)
+  const partial = project.currentStage === 'RENDER_PARTIAL'
+  const failed = ['STRATEGY_FAILED', 'CREATIVE_RENDER_FAILED'].includes(project.currentStage)
+  const locked = Boolean(project.activeJobType || project.renderCampaignId)
+  const readyPosts = renderCampaign?.posts.filter((post) => post.contentType === 'IMAGE' && Boolean(post.mediaAssetId)) || []
+  const missingPosts = renderCampaign?.posts.filter((post) => post.contentType === 'IMAGE' && !post.mediaAssetId) || []
   const platforms = ['Instagram', 'Facebook', 'X', 'LinkedIn', 'TikTok', 'Threads', 'Bluesky', 'Pinterest']
   const goals = ['AI Recommended', 'Sales', 'Traffic', 'Awareness', 'Product launch']
   const styles = ['AI Recommended', 'Performance ads', 'Minimal', 'Lifestyle', 'Editorial / infographic']
@@ -1473,14 +1398,16 @@ function ProductIntelligenceNode(props: NodeProps) {
   if (!analysis) return null
   const source = analysis.sourceAnalysis
   const brand = analysis.brandPack
+  const motionState = campaignRunning ? 'working' : failed ? 'error' : finished ? 'success' : campaignExpanded ? 'selected' : 'idle'
+  const requiredCredits = generationEstimate?.requiredCredits || project.workflow.generation.plannedCredits
 
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
     <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Right} type="source" />
-    <NodeShell className={`w-[430px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.11)] ${campaignExpanded ? 'shadow-[0_28px_90px_rgba(139,92,246,.13)]' : ''}`}>
+    <NodeShell className={`w-[440px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.11)] ${campaignExpanded ? 'shadow-[0_28px_90px_rgba(139,92,246,.13)]' : ''}`}>
       <div className="border-b border-border-soft bg-[linear-gradient(135deg,rgba(240,253,250,.8),rgba(255,255,255,1))] p-4">
         <div className="flex items-center gap-3">
-          <CreativeFlowMotionSlot className="size-16 shrink-0" state="success" />
+          <CreativeFlowMotionSlot className="size-16 shrink-0" state={campaignRunning ? 'working' : 'success'} />
           <div className="min-w-0">
             <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-green">Product Intelligence</span>
             <h4 className="mt-1 truncate text-[13px] font-semibold">{source.productName || brand.brandName || project.name}</h4>
@@ -1502,27 +1429,42 @@ function ProductIntelligenceNode(props: NodeProps) {
 
       <button
         className={`nodrag flex w-full items-center gap-3 border-t border-border-soft px-4 py-3.5 text-left transition ${campaignExpanded ? 'bg-brand-purple/[.035]' : 'bg-slate-50/65 hover:bg-slate-50'}`}
-        disabled={locked}
         onClick={() => setCampaignExpanded(!campaignExpanded)}
         type="button"
       >
-        <CreativeFlowMotionSlot className="size-11 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
+        <CreativeFlowMotionSlot className="size-11 shrink-0" state={motionState} />
         <span className="min-w-0 flex-1">
-          <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign Setup</span>
-          <strong className="mt-0.5 block truncate text-[10px]">{ready ? `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}` : 'Set up this campaign'}</strong>
-          <span className="mt-0.5 block truncate text-[7px] text-text-soft">{campaignGoal} · {creativeStyle}</span>
+          <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign</span>
+          <strong className="mt-0.5 block truncate text-[10px]">
+            {campaignRunning
+              ? project.progress.label || 'Generating campaign…'
+              : finished
+                ? `${readyPosts.length || project.progress.current} creatives ready`
+                : failed
+                  ? 'Campaign needs another try'
+                  : `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}`}
+          </strong>
+          <span className="mt-0.5 block truncate text-[7px] text-text-soft">
+            {campaignRunning ? 'Strategy is handled automatically in the background' : `${campaignGoal} · ${creativeStyle}`}
+          </span>
         </span>
-        {ready && !campaignExpanded
-          ? <span className="grid size-7 place-items-center rounded-full bg-brand-green/[.08] text-brand-green"><Check className="size-3.5" /></span>
-          : <ChevronDown className={`size-4 text-text-soft transition-transform ${campaignExpanded ? 'rotate-180' : ''}`} />}
+        <ChevronDown className={`size-4 text-text-soft transition-transform ${campaignExpanded ? 'rotate-180' : ''}`} />
       </button>
 
-      {campaignExpanded && <AnimatedExpand id="campaign-setup-inline">
+      {campaignRunning && <div className="border-t border-border-soft bg-white px-4 py-3">
+        {renderRunning
+          ? <><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(8, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div><div className="mt-1.5 flex items-center justify-between text-[7px] text-text-soft"><span>{project.progress.current} generated</span><span>{project.progress.total || creativeCount} total</span></div></>
+          : <><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-[38%] animate-pulse rounded-full bg-[linear-gradient(90deg,rgba(139,92,246,.75),rgba(20,184,166,.9))]" /></div><p className="mt-1.5 text-[7px] text-text-soft">Preparing the campaign internally, then generation starts automatically.</p></>}
+      </div>}
+
+      {failed && !project.renderCampaignId && <div className="border-t border-red-100 bg-red-50 px-4 py-3 text-[8px] leading-4 text-red-700">{project.lastError || 'Campaign generation stopped before rendering started. Your setup is still saved.'}</div>}
+
+      {campaignExpanded && !project.renderCampaignId && <AnimatedExpand id="campaign-setup-inline">
         <div className="nodrag border-t border-border-soft bg-white p-4">
           <div>
             <span className="text-[8px] font-semibold text-text-muted">Campaign goal</span>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {goals.map((goal) => <button className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-medium transition ${campaignGoal === goal ? 'border-brand-purple/30 bg-brand-purple/[.07] text-brand-purple' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} key={goal} onClick={() => setCampaignGoal(goal)} type="button">{goal}</button>)}
+              {goals.map((goal) => <button className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-medium transition ${campaignGoal === goal ? 'border-brand-purple/30 bg-brand-purple/[.07] text-brand-purple' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} disabled={locked} key={goal} onClick={() => setCampaignGoal(goal)} type="button">{goal}</button>)}
             </div>
           </div>
 
@@ -1531,7 +1473,7 @@ function ProductIntelligenceNode(props: NodeProps) {
             <div className="mt-2 flex flex-wrap gap-1.5">
               {platforms.map((platform) => {
                 const selected = campaignPlatforms.includes(platform)
-                return <button aria-pressed={selected} className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-medium transition ${selected ? 'border-brand-cyan/30 bg-brand-cyan/[.07] text-brand-cyan' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} key={platform} onClick={() => toggleCampaignPlatform(platform)} type="button">{selected && <Check className="mr-1 inline size-2.5" />}{platform}</button>
+                return <button aria-pressed={selected} className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-medium transition ${selected ? 'border-brand-cyan/30 bg-brand-cyan/[.07] text-brand-cyan' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} disabled={locked} key={platform} onClick={() => toggleCampaignPlatform(platform)} type="button">{selected && <Check className="mr-1 inline size-2.5" />}{platform}</button>
               })}
             </div>
           </div>
@@ -1539,24 +1481,43 @@ function ProductIntelligenceNode(props: NodeProps) {
           <div className="mt-4">
             <span className="text-[8px] font-semibold text-text-muted">How many creatives?</span>
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {[5, 10, 20, 50].map((count) => <button className={`min-w-10 rounded-lg border px-2.5 py-1.5 text-[8px] font-semibold transition ${creativeCount === count ? 'border-brand-cyan/30 bg-brand-cyan/[.07] text-brand-cyan' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} key={count} onClick={() => setCreativeCount(count)} type="button">{count}</button>)}
-              <label className="flex min-h-8 items-center rounded-lg border border-border-soft bg-white px-2"><span className="mr-1.5 text-[7px] text-text-soft">Custom</span><input aria-label="Custom creative count" className="w-10 bg-transparent text-[8px] font-semibold outline-none" max={50} min={1} onChange={(event) => setCreativeCount(Math.max(1, Math.min(50, Number(event.target.value || 1))))} type="number" value={creativeCount} /></label>
+              {[5, 10, 20, 50].map((count) => <button className={`min-w-10 rounded-lg border px-2.5 py-1.5 text-[8px] font-semibold transition ${creativeCount === count ? 'border-brand-cyan/30 bg-brand-cyan/[.07] text-brand-cyan' : 'border-border-soft bg-white text-text-muted hover:bg-slate-50'}`} disabled={locked} key={count} onClick={() => setCreativeCount(count)} type="button">{count}</button>)}
+              <label className="flex min-h-8 items-center rounded-lg border border-border-soft bg-white px-2"><span className="mr-1.5 text-[7px] text-text-soft">Custom</span><input aria-label="Custom creative count" className="w-10 bg-transparent text-[8px] font-semibold outline-none" disabled={locked} max={50} min={1} onChange={(event) => setCreativeCount(Math.max(1, Math.min(50, Number(event.target.value || 1))))} type="number" value={creativeCount} /></label>
             </div>
           </div>
 
-          <button className="mt-4 flex w-full items-center justify-between rounded-xl border border-border-soft bg-slate-50 px-3 py-2 text-left" onClick={() => setAdvancedExpanded(!advancedExpanded)} type="button"><span><strong className="block text-[8px]">Advanced options</strong><span className="mt-0.5 block text-[7px] text-text-soft">Optional style and audience direction</span></span><ChevronDown className={`size-3.5 text-text-soft transition-transform ${advancedExpanded ? 'rotate-180' : ''}`} /></button>
+          <div className="mt-4 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-3">
+            {generationEstimateLoading
+              ? <span className="flex items-center gap-2 text-[8px] text-text-muted"><Loader2 className="size-3 animate-spin" />Calculating campaign credits…</span>
+              : generationEstimate
+                ? <>
+                    <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-text-muted"><Coins className="size-3 text-brand-cyan" />{creativeCount} creatives</span><strong className="text-[10px]">{generationEstimate.requiredCredits} credits</strong></div>
+                    <div className="mt-1.5 flex items-center justify-between text-[7px] text-text-soft"><span>{generationEstimate.creditsPerCreative} credits per completed creative</span><span>{generationEstimate.creditsRemaining} available</span></div>
+                  </>
+                : <span className="text-[8px] text-text-muted">Credit estimate will appear here automatically.</span>}
+          </div>
+
+          <button className="mt-4 flex w-full items-center justify-between rounded-xl border border-border-soft bg-slate-50 px-3 py-2 text-left" disabled={locked} onClick={() => setAdvancedExpanded(!advancedExpanded)} type="button"><span><strong className="block text-[8px]">Advanced options</strong><span className="mt-0.5 block text-[7px] text-text-soft">Optional style and audience direction</span></span><ChevronDown className={`size-3.5 text-text-soft transition-transform ${advancedExpanded ? 'rotate-180' : ''}`} /></button>
 
           {advancedExpanded && <AnimatedExpand id="campaign-advanced-inline">
             <div className="mt-3 space-y-3 rounded-xl border border-border-soft bg-slate-50/70 p-3">
-              <label className="block"><span className="text-[8px] font-semibold text-text-muted">Creative style</span><select className="mt-1.5 min-h-9 w-full rounded-lg border border-border-soft bg-white px-2.5 text-[8px] outline-none focus:border-brand-purple/40" onChange={(event) => setCreativeStyle(event.target.value)} value={creativeStyle}>{styles.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
-              <label className="block"><span className="text-[8px] font-semibold text-text-muted">Audience direction</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-lg border border-border-soft bg-white p-2.5 text-[8px] leading-4 outline-none focus:border-brand-purple/40" maxLength={500} onChange={(event) => setCampaignAudience(event.target.value)} placeholder="Optional — leave blank and Creative Flow will infer from Product Intelligence." value={campaignAudience} /></label>
+              <label className="block"><span className="text-[8px] font-semibold text-text-muted">Creative style</span><select className="mt-1.5 min-h-9 w-full rounded-lg border border-border-soft bg-white px-2.5 text-[8px] outline-none focus:border-brand-purple/40" disabled={locked} onChange={(event) => setCreativeStyle(event.target.value)} value={creativeStyle}>{styles.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
+              <label className="block"><span className="text-[8px] font-semibold text-text-muted">Audience direction</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-lg border border-border-soft bg-white p-2.5 text-[8px] leading-4 outline-none focus:border-brand-purple/40" disabled={locked} maxLength={500} onChange={(event) => setCampaignAudience(event.target.value)} placeholder="Optional — leave blank and Creative Flow will infer from Product Intelligence." value={campaignAudience} /></label>
             </div>
           </AnimatedExpand>}
 
-          <Button className="mt-4 w-full" disabled={campaignBusy || locked || !campaignPlatforms.length} onClick={saveCampaignSetup} size="sm" variant="primary">{campaignBusy ? <Loader2 className="size-3 animate-spin" /> : ready ? <Check className="size-3" /> : <Target className="size-3" />}{ready ? 'Update campaign setup' : 'Save campaign setup'}</Button>
-          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Campaign setup saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">Creative Strategy can now grow from this same Product Intelligence node.</p></div>}
+          <Button className="mt-4 w-full" disabled={campaignBusy || locked || generationEstimateLoading || !generationEstimate?.canGenerate || !campaignPlatforms.length} onClick={generateCampaign} size="sm" variant="primary">
+            {campaignBusy ? <Loader2 className="size-3 animate-spin" /> : <Rocket className="size-3" />}
+            Generate Campaign{requiredCredits ? ` · ${requiredCredits} credits` : ''}
+          </Button>
+          {generationEstimate && !generationEstimate.canGenerate && <p className="mt-2 text-center text-[8px] text-red-600">Not enough AI credits for this campaign.</p>}
         </div>
       </AnimatedExpand>}
+
+      {finished && <div className="border-t border-brand-green/15 bg-brand-green/[.035] px-4 py-3">
+        <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><CheckCircle2 className="size-3" />{partial ? 'Campaign partially generated' : 'Campaign generation complete'}</span><span className="text-[8px] text-text-soft">{readyPosts.length} ready</span></div>
+        {missingPosts.length > 0 && <Button className="mt-2 w-full" disabled={retryMissingBusy || Boolean(project.activeJobType)} onClick={retryMissingCreatives} size="sm">{retryMissingBusy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}Retry {missingPosts.length} missing creative{missingPosts.length === 1 ? '' : 's'}</Button>}
+      </div>}
     </NodeShell>
   </div>
 }
@@ -1907,12 +1868,23 @@ function MotionEdge(props: EdgeProps<Stage2Edge>) {
   const stroke = complete ? 'rgba(34,197,94,.86)' : active ? 'rgba(20,184,166,.95)' : 'rgba(100,116,139,.68)'
 
   return <>
+    <path
+      d={edgePath}
+      fill="none"
+      pointerEvents="none"
+      stroke="rgba(255,255,255,.96)"
+      strokeLinecap="round"
+      strokeWidth={active ? 6.8 : 5.6}
+      vectorEffect="non-scaling-stroke"
+    />
     <BaseEdge
       path={edgePath}
       style={{
         stroke,
-        strokeWidth: active ? 2.8 : 2.1,
+        strokeOpacity: 1,
+        strokeWidth: active ? 3 : 2.35,
         strokeLinecap: 'round',
+        filter: active ? 'drop-shadow(0 0 4px rgba(20,184,166,.35))' : 'drop-shadow(0 1px 1px rgba(15,23,42,.12))',
       }}
     />
     {active && <>

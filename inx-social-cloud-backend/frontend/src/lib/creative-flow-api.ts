@@ -379,11 +379,28 @@ export type CreativeFlowGenerationEstimate = {
   canGenerate: boolean
 }
 
-export function getCreativeFlowGenerationEstimate(projectId: string) {
+export function getCreativeFlowGenerationEstimate(projectId: string, count?: number) {
+  const query = count == null ? '' : `?count=${encodeURIComponent(String(count))}`
   return apiRequest<CreativeFlowGenerationEstimate>(
-    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/generation-estimate`,
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/generation-estimate${query}`,
     { cache: 'no-store' },
   )
+}
+
+export function generateCreativeFlowCampaign(projectId: string, input: {
+  goal: string
+  platforms: string[]
+  creativeCount: number
+  style: string
+  audience: string
+}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/campaign-generate`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
 }
 
 export function startCreativeFlowProjectGeneration(projectId: string) {
