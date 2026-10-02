@@ -539,7 +539,7 @@ function CreativeFlowWorkspaceInner({
         : current.activeProject?.id === next.id
           ? null
           : current.activeProject
-      return { projects, activeProject: currentActive }
+      return { projects, archivedProjects: current.archivedProjects || [], activeProject: currentActive }
     })
   }, [queryClient])
 
@@ -548,7 +548,7 @@ function CreativeFlowWorkspaceInner({
     const nextNodes = [...defaultNodes(project), ...reviewGraph.nodes]
     setNodes((current) => nextNodes.map((node) => {
       const existing = current.find((item) => item.id === node.id)
-      return existing ? { ...node, position: existing.position } : node
+      return existing && node.draggable !== false ? { ...node, position: existing.position } : node
     }))
     setEdges([...defaultEdges(project), ...reviewGraph.edges])
 
@@ -558,6 +558,8 @@ function CreativeFlowWorkspaceInner({
       project.workflow.analysis ? 'analysis' : '',
       project.workflow.strategyPlan ? 'strategy' : '',
       project.renderCampaignId || '',
+      project.workflow.review.revealedPostIds.join(','),
+      project.workflow.review.selectedPostIds.join(','),
     ].join(':')
     const focusChanged = lastFocusKeyRef.current !== focusKey
     lastFocusKeyRef.current = focusKey
