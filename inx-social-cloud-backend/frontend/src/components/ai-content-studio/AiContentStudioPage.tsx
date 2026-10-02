@@ -36,7 +36,7 @@ import { GenerationModalRouter } from './GenerationModalRouter'
 import { AiPostCampaignModal } from './AiPostCampaignModal'
 import { UGCWizardModal } from './UGCWizardModal'
 import { UGCStudioHomeModal } from './UGCStudioHomeModal'
-import { CreativeFlowLaunchCard, CreativeFlowModal } from './CreativeFlowModal'
+import { CreativeFlowProjectHubModal, CreativeFlowProjectLaunchCard } from './CreativeFlowProjectHubModal'
 
 const immediateAiAccess: AIPlanAccess = {
   plan: 'trial',
@@ -220,7 +220,7 @@ export function AiContentStudioPage() {
     </section>
 
     <section className="mt-4">
-      <CreativeFlowLaunchCard onOpen={() => setCreativeFlowOpen(true)} />
+      <CreativeFlowProjectLaunchCard onOpen={() => setCreativeFlowOpen(true)} />
     </section>
 
     <section className="mt-4">
@@ -268,7 +268,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
-    <CreativeFlowModal onClose={() => setCreativeFlowOpen(false)} open={creativeFlowOpen} />
+    <CreativeFlowProjectHubModal onClose={() => setCreativeFlowOpen(false)} open={creativeFlowOpen} />
     <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign) => void handoffCampaign(campaign)} onToast={setToast} open={campaignOpen} />
     <UGCStudioHomeModal
       onClose={() => { setUgcHomeOpen(false); if (requestedUGC) setSearchParams({}, { replace: true }) }}

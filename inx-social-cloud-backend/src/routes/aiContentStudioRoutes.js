@@ -16,6 +16,11 @@ router.post('/references', express.raw({
   limit: '20mb'
 }), controller.uploadReference);
 router.post('/assistant/message', controller.assistantMessage);
+router.get('/creative-flow/projects', controller.listCreativeFlowProjects);
+router.post('/creative-flow/projects', controller.createCreativeFlowProject);
+router.post('/creative-flow/projects/:projectId/open', controller.openCreativeFlowProject);
+router.patch('/creative-flow/projects/:projectId', controller.renameCreativeFlowProject);
+router.delete('/creative-flow/projects/:projectId', controller.archiveCreativeFlowProject);
 router.post('/creative-flow/analyze', controller.analyzeCreativeFlow);
 router.post('/creative-flow/strategy', controller.planCreativeFlow);
 router.post('/creative-flow/render', controller.startCreativeFlowRender);

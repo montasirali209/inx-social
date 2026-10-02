@@ -168,3 +168,66 @@ export function handoffCreativeFlowCampaign(campaignId: string, approvedPostIds:
     },
   )
 }
+
+
+export type CreativeFlowProject = {
+  id: string
+  name: string
+  status: string
+  currentStage: string
+  activeJobType: string | null
+  progress: {
+    current: number
+    total: number
+    label: string | null
+  }
+  productUrl: string | null
+  renderCampaignId: string | null
+  handoffCampaignId: string | null
+  lastError: string | null
+  lastOpenedAt: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type CreativeFlowProjectList = {
+  projects: CreativeFlowProject[]
+  activeProject: CreativeFlowProject | null
+}
+
+export function listCreativeFlowProjects() {
+  return apiRequest<CreativeFlowProjectList>('/api/ai-content-studio/creative-flow/projects', {
+    cache: 'no-store',
+  })
+}
+
+export function createCreativeFlowProject(name: string) {
+  return apiRequest<{ project: CreativeFlowProject }>('/api/ai-content-studio/creative-flow/projects', {
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  }).then((response) => response.project)
+}
+
+export function openCreativeFlowProject(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/open`,
+    { method: 'POST' },
+  ).then((response) => response.project)
+}
+
+export function renameCreativeFlowProject(projectId: string, name: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    },
+  ).then((response) => response.project)
+}
+
+export function archiveCreativeFlowProject(projectId: string) {
+  return apiRequest<{ ok: true }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}`,
+    { method: 'DELETE' },
+  )
+}

@@ -8,6 +8,7 @@ const postStudioService = require('../services/aiPostStudioService');
 const runware = require('../services/runwareService');
 const campaignService = require('../services/aiPostCampaignService');
 const creativeFlowService = require('../services/creativeFlowService');
+const creativeFlowProjectService = require('../services/creativeFlowProjectService');
 
 const contentType = z.enum(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const generationSchema = z.object({
@@ -89,6 +90,14 @@ const campaignPostSchema = z.object({
   imageBrief: z.string().max(4000).optional()
 });
 
+
+const creativeFlowProjectSchema = z.object({
+  name: z.string().trim().min(1).max(120)
+});
+
+const creativeFlowProjectRenameSchema = z.object({
+  name: z.string().trim().min(1).max(120)
+});
 
 const creativeFlowAnalyzeSchema = z.object({
   website: z.string().trim().max(2000).optional().default(''),
@@ -348,6 +357,38 @@ async function createTopupCheckout(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function listCreativeFlowProjects(req, res, next) {
+  try {
+    res.json(await creativeFlowProjectService.listProjects(req.user.id));
+  } catch (error) { next(error); }
+}
+
+async function createCreativeFlowProject(req, res, next) {
+  try {
+    const input = creativeFlowProjectSchema.parse(req.body || {});
+    res.status(201).json({ project: await creativeFlowProjectService.createProject(req.user.id, input.name) });
+  } catch (error) { next(error); }
+}
+
+async function openCreativeFlowProject(req, res, next) {
+  try {
+    res.json({ project: await creativeFlowProjectService.openProject(req.user.id, req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function renameCreativeFlowProject(req, res, next) {
+  try {
+    const input = creativeFlowProjectRenameSchema.parse(req.body || {});
+    res.json({ project: await creativeFlowProjectService.renameProject(req.user.id, req.params.projectId, input.name) });
+  } catch (error) { next(error); }
+}
+
+async function archiveCreativeFlowProject(req, res, next) {
+  try {
+    res.json(await creativeFlowProjectService.archiveProject(req.user.id, req.params.projectId));
+  } catch (error) { next(error); }
+}
+
 async function analyzeCreativeFlow(req, res, next) {
   try {
     const input = creativeFlowAnalyzeSchema.parse(req.body || {});
@@ -494,6 +535,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, renameCreativeFlowProject, archiveCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };

@@ -6,13 +6,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Creative Flow keeps the connected visual workflow through Stage 4', () => {
+test('Legacy Creative Flow engine remains available underneath the Project Hub rebuild', () => {
   const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
   const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
   const canvas = read('frontend/src/components/ai-content-studio/CreativeFlowCanvas.tsx');
 
-  assert.match(page, /CreativeFlowLaunchCard/);
-  assert.match(page, /CreativeFlowModal/);
+  assert.match(page, /CreativeFlowProjectLaunchCard/);
+  assert.match(page, /CreativeFlowProjectHubModal/);
   assert.match(modal, /CreativeFlowCanvas/);
   assert.match(canvas, /Product source/);
   assert.match(canvas, /Campaign brief/);
