@@ -486,7 +486,8 @@ async function retryCreativeFlowRender(userId, campaignId) {
 async function regenerateCreativeFlowPost(userId, campaignId, postId) {
   await rawCreativeFlowCampaign(userId, campaignId);
   await creativeFlowAccess(userId, postStudio.IMAGE_CREDITS);
-  return campaignService.generatePostImage(userId, campaignId, postId);
+  await campaignService.generatePostImage(userId, campaignId, postId);
+  return publicCreativeFlowCampaign(userId, campaignId);
 }
 
 async function removeCreativeFlowRender(userId, campaignId) {
