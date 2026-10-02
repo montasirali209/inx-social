@@ -27,7 +27,7 @@ test('Stage 2 uses the agreed motion architecture inside the project workspace',
   assert.match(motion, /useStateMachineInput/);
   assert.match(motion, /CreativeFlowMotionState/);
   assert.match(motion, /working.*success.*error/s);
-  assert.match(motion, /GSAP fallback|FallbackMotion/);
+  assert.match(motion, /ExpressiveMotion/);
 });
 
 test('Stage 2 begins with only product URL, product images and analyse controls', () => {

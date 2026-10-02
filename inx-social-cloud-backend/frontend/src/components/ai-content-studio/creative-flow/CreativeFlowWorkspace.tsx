@@ -31,7 +31,6 @@ import {
   Loader2,
   Layers3,
   Maximize2,
-  Play,
   RefreshCw,
   Rocket,
   ScanSearch,
@@ -170,6 +169,32 @@ function campaignConfigured(project: CreativeFlowProject) {
 
 function renderFinished(project: CreativeFlowProject) {
   return ['RENDER_READY', 'RENDER_PARTIAL'].includes(project.currentStage)
+}
+
+function focusNodeIds(project: CreativeFlowProject) {
+  if (project.activeJobType === 'PRODUCT_ANALYSIS' || project.currentStage === 'PRODUCT_ANALYSIS_RUNNING') {
+    return ['productUrl', 'productImages', 'analyzeProduct', 'analysisProcess']
+  }
+  if (!project.workflow.analysis) {
+    return ['productUrl', 'productImages', 'analyzeProduct']
+  }
+  if (
+    project.activeJobType === 'STRATEGY_PLANNING' ||
+    ['CAMPAIGN_READY', 'STRATEGY_PLANNING', 'STRATEGY_FAILED'].includes(project.currentStage)
+  ) {
+    return ['campaignSetup', 'creativeStrategy']
+  }
+  if (
+    project.workflow.strategyPlan &&
+    (
+      project.activeJobType === 'CREATIVE_RENDER' ||
+      project.renderCampaignId ||
+      ['STRATEGY_READY', 'CREATIVE_RENDER_STARTING', 'CREATIVE_RENDER_RUNNING', 'CREATIVE_RENDER_FAILED', 'RENDER_READY', 'RENDER_PARTIAL'].includes(project.currentStage)
+    )
+  ) {
+    return ['creativeStrategy', 'generateCreatives']
+  }
+  return ['productIntelligence', 'campaignSetup']
 }
 
 function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
@@ -326,7 +351,7 @@ function CreativeFlowWorkspaceInner({
   const previewUrlsRef = useRef<Set<string>>(new Set())
   const [nodes, setNodes, onNodesChange] = useNodesState<Stage2Node>(defaultNodes(initialProject))
   const [edges, setEdges, onEdgesChange] = useEdgesState<Stage2Edge>(defaultEdges(initialProject))
-  const lastStageRef = useRef(initialProject.currentStage)
+  const lastFocusKeyRef = useRef('')
 
   const projectQuery = useQuery({
     queryKey: ['creative-flow-project', initialProject.id],
@@ -373,27 +398,25 @@ function CreativeFlowWorkspaceInner({
     }))
     setEdges(defaultEdges(project))
 
-    const stageChanged = lastStageRef.current !== project.currentStage
-    lastStageRef.current = project.currentStage
-    if ((running || analysis) && stageChanged) {
+    const focusKey = [
+      project.currentStage,
+      project.activeJobType || '',
+      project.workflow.analysis ? 'analysis' : '',
+      project.workflow.strategyPlan ? 'strategy' : '',
+      project.renderCampaignId || '',
+    ].join(':')
+    const focusChanged = lastFocusKeyRef.current !== focusKey
+    lastFocusKeyRef.current = focusKey
+    if (focusChanged) {
+      const ids = focusNodeIds(project)
       window.setTimeout(() => {
         void flow.fitView({
-          nodes: analysis
-            ? [
-                { id: 'productUrl' },
-                { id: 'productImages' },
-                { id: 'analyzeProduct' },
-                { id: 'productIntelligence' },
-                { id: 'campaignSetup' },
-                ...(campaignConfigured(project) ? [{ id: 'creativeStrategy' }] : []),
-                ...(project.workflow.strategyPlan ? [{ id: 'generateCreatives' }] : []),
-              ]
-            : [{ id: 'productUrl' }, { id: 'productImages' }, { id: 'analyzeProduct' }, { id: 'analysisProcess' }],
-          padding: 0.2,
-          duration: 720,
-          maxZoom: 1.05,
+          nodes: ids.map((id) => ({ id })),
+          padding: 0.24,
+          duration: 760,
+          maxZoom: 1.12,
         })
-      }, 120)
+      }, 180)
     }
   }, [analysis, flow, project, running, setEdges, setNodes])
 
@@ -876,12 +899,10 @@ function AnalyzeProductNode(props: NodeProps) {
     <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Right} type="source" />
     <NodeShell className={`w-[250px] overflow-hidden ${running ? 'border-brand-cyan/35 shadow-[0_22px_70px_rgba(20,184,166,.16)]' : success ? 'border-brand-green/25' : ''}`}>
       <div className="p-4 text-center">
-        <span className={`mx-auto grid size-11 place-items-center rounded-[16px] border ${running ? 'border-brand-cyan/25 bg-brand-cyan/[.07] text-brand-cyan' : success ? 'border-brand-green/20 bg-brand-green/[.06] text-brand-green' : failed ? 'border-red-200 bg-red-50 text-red-500' : 'border-border-soft bg-slate-50 text-text-muted'}`}>
-          {running ? <Loader2 className="size-4.5 animate-spin motion-reduce:animate-none" /> : success ? <Check className="size-4.5" /> : failed ? <RefreshCw className="size-4.5" /> : <Play className="size-4.5" />}
-        </span>
+        <CreativeFlowMotionSlot className="mx-auto size-14" state={running ? 'working' : success ? 'success' : failed ? 'error' : 'idle'} />
         <span className="mt-3 block text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Analyse Product</span>
         <strong className="mt-1 block text-[11px]">{running ? 'Creative Flow is reading your sources' : success ? 'Product understood' : failed ? 'Try product analysis again' : 'Connect the product inputs'}</strong>
-        <p className="mt-1.5 text-[8px] leading-4 text-text-soft">{running ? project.progress.label || 'Analysing…' : success ? 'The Product Intelligence node is ready.' : 'URL, images, or both can feed the analysis.'}</p>
+        <p className="mt-1.5 text-[8px] leading-4 text-text-soft">{running ? project.progress.label || 'Analysing…' : success ? 'The Product Intelligence node is ready.' : failed ? project.lastError || 'Something interrupted product analysis. Retry when ready.' : 'URL, images, or both can feed the analysis.'}</p>
         {!success && <Button className="mt-3 w-full" disabled={!sourceReady || running || sourceBusy} onClick={runAnalysis} size="sm" variant="primary">{running ? <Loader2 className="size-3 animate-spin" /> : <ScanSearch className="size-3" />}{failed ? 'Retry analysis' : 'Analyse product'}</Button>}
       </div>
     </NodeShell>
@@ -1105,7 +1126,8 @@ function CreativeStrategyNode(props: NodeProps) {
 
       {!plan && !running && <div className="nodrag border-t border-border-soft p-4">
         <p className="text-[8px] leading-4 text-text-muted">Creative Flow will build the campaign foundation and then produce the exact number of materially different concepts requested in Campaign Setup.</p>
-        <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} onClick={startStrategy} size="sm" variant="primary">{strategyBusy ? <Loader2 className="size-3 animate-spin" /> : failed ? <RefreshCw className="size-3" /> : <BrainCircuit className="size-3" />}{failed ? 'Retry strategy' : 'Build creative strategy'}</Button>
+{failed && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'Creative strategy stopped unexpectedly. The project is safe; retry this step when ready.'}</div>}
+                <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} onClick={startStrategy} size="sm" variant="primary">{strategyBusy ? <Loader2 className="size-3 animate-spin" /> : failed ? <RefreshCw className="size-3" /> : <BrainCircuit className="size-3" />}{failed ? 'Retry strategy' : 'Build creative strategy'}</Button>
       </div>}
 
       {plan && strategyExpanded && <AnimatedExpand id="creative-strategy">
@@ -1124,7 +1146,7 @@ function CreativeStrategyNode(props: NodeProps) {
             })}
           </div>
 
-          <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType)} onClick={startStrategy} size="sm"><RefreshCw className="size-3" />Regenerate strategy</Button>
+          <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} onClick={startStrategy} size="sm"><RefreshCw className="size-3" />Regenerate strategy</Button>
         </div>
       </AnimatedExpand>}
     </NodeShell>
@@ -1196,6 +1218,7 @@ function GenerateCreativesNode(props: NodeProps) {
           <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Some renders need retry.' : 'The render campaign is persisted and completed images are already in Media Library.'} Stage 5 expands these results into individual interactive creative nodes.</p>
         </div>}
 
+        {failed && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'Creative generation stopped unexpectedly. No other project state was lost.'}</div>}
         {failed && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || !generationEstimate?.canGenerate} onClick={startGeneration} size="sm"><RefreshCw className="size-3" />Retry generation start</Button>}
       </div>
     </NodeShell>
