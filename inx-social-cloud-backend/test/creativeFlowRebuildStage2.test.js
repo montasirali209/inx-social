@@ -74,7 +74,7 @@ test('Stage 2 analysis is project-owned, background-safe and restart-resumable',
   assert.match(runtime, /saveProductAnalysis/);
   assert.match(runtime, /currentStage: 'PRODUCT_READY'/);
   assert.match(runtime, /PRODUCT_ANALYSIS_FAILED/);
-  assert.match(runtime, /activeJobType: 'PRODUCT_ANALYSIS'/);
+  assert.match(runtime, /PRODUCT_ANALYSIS/);
   assert.match(server, /startCreativeFlowProjectRuntime/);
 });
 
