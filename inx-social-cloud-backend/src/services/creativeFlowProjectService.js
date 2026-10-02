@@ -57,6 +57,8 @@ function defaultCanvas() {
       creativeStrategy: { x: 1710, y: 185 },
       generateCreatives: { x: 2160, y: 225 }
     },
+    creativePositions: {},
+    schedulePosition: null,
     viewport: { x: 0, y: 0, zoom: 1 }
   };
 }
@@ -67,6 +69,15 @@ function normalizeWorkflow(value) {
   const positions = input.canvas?.positions && typeof input.canvas.positions === 'object'
     ? input.canvas.positions
     : {};
+  const rawCreativePositions = input.canvas?.creativePositions && typeof input.canvas.creativePositions === 'object'
+    ? input.canvas.creativePositions
+    : {};
+  const creativePositions = Object.fromEntries(
+    Object.entries(rawCreativePositions)
+      .map(([key, value]) => [clean(key, 160), cleanPosition(value, { x: 0, y: 0 })])
+      .filter(([key]) => Boolean(key))
+      .slice(0, 50)
+  );
   return {
     version: Math.max(2, Number(input.version || 2)),
     source: {
@@ -118,6 +129,10 @@ function normalizeWorkflow(value) {
         creativeStrategy: cleanPosition(positions.creativeStrategy, defaults.positions.creativeStrategy),
         generateCreatives: cleanPosition(positions.generateCreatives, defaults.positions.generateCreatives)
       },
+      creativePositions,
+      schedulePosition: input.canvas?.schedulePosition
+        ? cleanPosition(input.canvas.schedulePosition, { x: 0, y: 0 })
+        : null,
       viewport: cleanViewport(input.canvas?.viewport, defaults.viewport)
     }
   };
@@ -629,6 +644,19 @@ async function saveCanvasState(userId, projectId, input = {}) {
     creativeStrategy: cleanPosition(positions.creativeStrategy, workflow.canvas.positions.creativeStrategy),
     generateCreatives: cleanPosition(positions.generateCreatives, workflow.canvas.positions.generateCreatives)
   };
+  if (input.creativePositions && typeof input.creativePositions === 'object') {
+    workflow.canvas.creativePositions = Object.fromEntries(
+      Object.entries(input.creativePositions)
+        .map(([key, value]) => [clean(key, 160), cleanPosition(value, workflow.canvas.creativePositions?.[key] || { x: 0, y: 0 })])
+        .filter(([key]) => Boolean(key))
+        .slice(0, 50)
+    );
+  }
+  if (input.schedulePosition !== undefined) {
+    workflow.canvas.schedulePosition = input.schedulePosition
+      ? cleanPosition(input.schedulePosition, workflow.canvas.schedulePosition || { x: 0, y: 0 })
+      : null;
+  }
   workflow.canvas.viewport = cleanViewport(input.viewport, workflow.canvas.viewport);
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
