@@ -314,6 +314,12 @@ async function saveProductSource(userId, projectId, input = {}) {
     where: { id: project.id },
     data: {
       productUrl: workflow.source.normalizedUrl || null,
+      status: 'DRAFT',
+      currentStage: 'PROJECT_CREATED',
+      progressCurrent: 0,
+      progressTotal: 0,
+      progressLabel: null,
+      lastError: null,
       workflowJson: JSON.stringify(workflow),
       updatedAt: new Date()
     }
