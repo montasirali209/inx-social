@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Stage 2 uses React Flow with visible pulse connectors and shared motion graphics', () => {
+test('Stage 2 uses React Flow with visible n8n-style pulse connectors and shared motion graphics', () => {
   const pkg = read('frontend/package.json');
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
   const motion = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowMotion.tsx');
@@ -15,7 +15,9 @@ test('Stage 2 uses React Flow with visible pulse connectors and shared motion gr
   assert.match(pkg, /"gsap": "3\.15\.0"/);
   assert.match(workspace, /ReactFlowProvider/);
   assert.match(workspace, /function FlowingEdge/);
-  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /function buildN8nBezierPath/);
+  assert.match(workspace, /horizontalDistance \* 0\.34/);
+  assert.match(workspace, /Math\.min\(150/);
   assert.match(workspace, /type: 'flow'/);
   assert.match(workspace, /<animateMotion/);
   assert.match(workspace, /zIndex: 8/);
@@ -61,6 +63,16 @@ test('Stage 2 always wires both source nodes into Analyse Product', () => {
   assert.match(workspace, /edges=\{edges\}/);
 });
 
+test('Stage 2 fans Analyse Product into every process node and all four feed Product Intelligence', () => {
+  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
+
+  assert.match(workspace, /ANALYSIS_STEPS\.slice\(0, visible\)\.forEach/);
+  assert.match(workspace, /`analyze-\$\{step\.id\}`/);
+  assert.match(workspace, /'analyzeProduct',\s*step\.id/);
+  assert.match(workspace, /ANALYSIS_STEPS\.forEach\(\(step\) => edges\.push\(makeEdge\(`\$\{step\.id\}-intelligence`, step\.id, 'productIntelligence'/);
+  assert.doesNotMatch(workspace, /ANALYSIS_STEPS\[index - 1\]\.id/);
+});
+
 test('Stage 2 source nodes persist URL and uploaded product references', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
   const routes = read('src/routes/aiContentStudioRoutes.js');
@@ -89,6 +101,25 @@ test('Stage 2 analysis is project-owned background-safe and restart-resumable', 
   assert.match(runtime, /saveProductAnalysis/);
   assert.match(runtime, /PRODUCT_ANALYSIS_FAILED/);
   assert.match(server, /startCreativeFlowProjectRuntime/);
+});
+
+test('Stage 2 product research uses browser-assisted controlled crawl plus identity validation', () => {
+  const wrapper = read('src/services/aiPostStudioService.js');
+  const research = read('src/services/creativeFlowResearchService.js');
+  const api = read('frontend/src/lib/ai-post-studio-api.ts');
+  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
+
+  assert.match(wrapper, /creativeFlowResearchService/);
+  assert.match(wrapper, /researchWebsite/);
+  assert.match(wrapper, /validateAnalysisIdentity/);
+  assert.match(research, /BROWSER_RENDERER_BROWSER_URL/);
+  assert.match(research, /MAX_RESEARCH_PAGES = 6/);
+  assert.match(research, /candidateUrls/);
+  assert.match(research, /evidenceConfidence/);
+  assert.match(research, /browser-assisted-crawl/);
+  assert.match(api, /evidenceConfidence\?: 'high' \| 'medium' \| 'low'/);
+  assert.match(workspace, /source\.evidenceConfidence \|\| brand\.confidence/);
+  assert.match(workspace, />Evidence</);
 });
 
 test('Stage 2 analysis nodes reveal progressively and converge into Product Intelligence', () => {

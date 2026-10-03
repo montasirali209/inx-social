@@ -58,7 +58,8 @@ test('Changing product inputs invalidates downstream Product Intelligence', () =
 test('Stage 3 uses a visible custom React Flow edge renderer with directional pulses', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
   assert.match(workspace, /function FlowingEdge/);
-  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /function buildN8nBezierPath/);
+  assert.doesNotMatch(workspace, /getSmoothStepPath/);
   assert.match(workspace, /type: 'flow'/);
   assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'flow', zIndex: 8/);
   assert.match(workspace, /<animateMotion/);

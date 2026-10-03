@@ -18,8 +18,12 @@ axios.interceptors.request.use((config) => {
 
 const studio = require('./aiPostStudioServiceV2');
 const references = require('./aiStudioReferenceService');
+const research = require('./creativeFlowResearchService');
 
 const baseGenerateImagePost = studio.generateImagePost;
+const baseFetchUrlContext = studio.fetchUrlContext;
+const basePerformSourceAnalysis = studio.performSourceAnalysis;
+const researchByUrl = new Map();
 
 function clean(value, max = 4000) {
   return String(value || '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -31,6 +35,29 @@ function cleanWords(value, maxWords, maxChars) {
     .filter(Boolean)
     .slice(0, maxWords)
     .join(' ');
+}
+
+async function fetchUrlContext(value) {
+  const result = await research.researchWebsite(value, baseFetchUrlContext);
+  const context = result?.context || await baseFetchUrlContext(value);
+  if (context?.url) researchByUrl.set(context.url, result);
+  const normalizedInput = studio.normalizeUrl(value);
+  if (normalizedInput) researchByUrl.set(normalizedInput, result);
+  return context;
+}
+
+async function performSourceAnalysis(messages, urlContexts, refs, fingerprint, options = {}) {
+  const analysis = await basePerformSourceAnalysis(messages, urlContexts, refs, fingerprint, options);
+  const context = (Array.isArray(urlContexts) ? urlContexts : []).find((item) => item && !item.error) || null;
+  const result = context ? (researchByUrl.get(context.url) || {
+    canonicalName: context.siteName || context.title || '',
+    evidenceScore: context.research?.evidenceScore || 0,
+    evidenceConfidence: context.research?.evidenceConfidence || 'low',
+    sourceCoverage: context.research?.sourceCoverage || 0,
+    researchMode: context.research?.browserRendered ? 'browser-assisted-crawl' : 'fast-fetch',
+    pages: context.research?.pages || [],
+  }) : null;
+  return research.validateAnalysisIdentity(analysis, result);
 }
 
 function isCreativeFlowImage(input = {}) {
@@ -193,6 +220,8 @@ async function generateImagePost(userId, input = {}) {
 
 module.exports = {
   ...studio,
+  fetchUrlContext,
+  performSourceAnalysis,
   generateImagePost,
   buildCreativeFlowProductionBrief,
   saveReference: references.saveReference

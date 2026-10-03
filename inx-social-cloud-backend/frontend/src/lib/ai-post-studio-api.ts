@@ -36,6 +36,10 @@ export type PostStudioSourceAnalysis = {
   strongestAngles: string[]
   cautions: string[]
   sources: Array<{ type: 'url' | 'reference'; label: string; ok: boolean }>
+  evidenceScore?: number
+  evidenceConfidence?: 'high' | 'medium' | 'low'
+  sourceCoverage?: number
+  researchMode?: string
 }
 
 export type PostStudioRouting = {
@@ -85,6 +89,10 @@ export function sourceAnalysisMemoryMessage(analysis: PostStudioSourceAnalysis |
     assetObservations: compactStrings(analysis.assetObservations, 3, 100),
     strongestAngles: compactStrings(analysis.strongestAngles, 3, 100),
     cautions: compactStrings(analysis.cautions, 2, 100),
+    evidenceScore: analysis.evidenceScore,
+    evidenceConfidence: analysis.evidenceConfidence,
+    sourceCoverage: analysis.sourceCoverage,
+    researchMode: analysis.researchMode,
     sources: (analysis.sources || []).slice(0, 4).map((item) => ({ type: item.type, label: String(item.label || '').slice(0, 80), ok: item.ok })),
   }
   return { role: 'assistant', content: `${SOURCE_MEMORY_PREFIX}${JSON.stringify(compact)}` }

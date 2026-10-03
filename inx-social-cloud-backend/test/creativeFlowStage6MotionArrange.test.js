@@ -11,7 +11,8 @@ test('Creative Flow connectors use solid paths with travelling flow pulses', () 
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
   assert.match(workspace, /BaseEdge/);
-  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /function buildN8nBezierPath/);
+  assert.doesNotMatch(workspace, /getSmoothStepPath/);
   assert.match(workspace, /function FlowingEdge/);
   assert.match(workspace, /<animateMotion/);
   assert.match(workspace, /type: 'flow'/);
