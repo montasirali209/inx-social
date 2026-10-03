@@ -23,6 +23,19 @@ test('Stage 2 uses React Flow with built-in high-contrast connectors and shared 
   assert.match(motion, /ExpressiveMotion/);
 });
 
+test('Stage 2 protects React Flow edge SVG geometry on desktop and keeps the graph visibly flowing', () => {
+  const responsive = read('frontend/src/mobile-responsive.css');
+
+  assert.doesNotMatch(responsive, /img, video, canvas, svg\s*\{/);
+  assert.match(responsive, /\.react-flow__edges\s*\{/);
+  assert.match(responsive, /max-width: none !important/);
+  assert.match(responsive, /overflow: visible !important/);
+  assert.match(responsive, /\.react-flow__edge-path\s*\{/);
+  assert.match(responsive, /vector-effect: non-scaling-stroke/);
+  assert.match(responsive, /creative-flow-connector-travel/);
+  assert.match(responsive, /stroke-dasharray: 10 7/);
+});
+
 test('Stage 2 begins with product URL images and analyse controls then grows process nodes', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
