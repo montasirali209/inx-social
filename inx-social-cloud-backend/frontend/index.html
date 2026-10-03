@@ -7,6 +7,32 @@
     <meta name="robots" content="noindex,nofollow,noarchive" />
     <link rel="icon" type="image/png" href="/assets/inx-social-logo.png" />
     <title>INX Social</title>
+    <style>
+      /* Creative Flow canvas guards.
+         React Flow's animated-edge stylesheet can leak dash styling into custom
+         edge renderers, so custom flow edges always own their stroke appearance. */
+      .react-flow__edge-flow path {
+        stroke-dasharray: none !important;
+        stroke-dashoffset: 0 !important;
+        animation: none !important;
+      }
+
+      /* Keep the Creative Flow project/arrange toolbar above the React Flow
+         renderer even when the renderer creates its own stacking context. */
+      div:has(> .pointer-events-auto > button[aria-label="Auto arrange workflow"]) {
+        z-index: 1000 !important;
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+
+      div:has(> button[aria-label="Auto arrange workflow"]),
+      button[aria-label="Auto arrange workflow"],
+      button[aria-label="Fit Creative Flow to screen"] {
+        visibility: visible !important;
+        opacity: 1 !important;
+      }
+    </style>
     <script src="/analytics-funnel.js?v=20260916b" defer></script>
   </head>
   <body>
