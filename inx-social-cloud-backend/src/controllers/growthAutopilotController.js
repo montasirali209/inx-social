@@ -37,8 +37,19 @@ async function updateConfig(req, res, next) {
       retryHours: z.coerce.number().min(1).max(24).optional()
     }).parse(req.body || {});
 
+    const updated = await autopilot.updateConfig(input);
+
+    // Stop is a hard runtime stop. Persisting enabled=false alone prevents new
+    // AI cycles, but these calls also remove the Autopilot-owned timers and
+    // release its runtime lease. Start explicitly recreates those timers.
+    if (input.enabled === false) {
+      await autopilot.stopGrowthAutopilot();
+    } else if (input.enabled === true) {
+      autopilot.startGrowthAutopilot();
+    }
+
     res.setHeader('Cache-Control', 'no-store');
-    return res.json(await autopilot.updateConfig(input));
+    return res.json(await autopilot.status().catch(() => updated));
   } catch (error) {
     next(error);
   }
@@ -56,11 +67,15 @@ async function runNow(req, res, next) {
       });
     }
 
-    void autopilot.runCycle({ force: true }).catch(error => {
+    // A manual check must not force every expensive subsystem to become due at
+    // once. It now runs only work that is actually due according to the saved
+    // schedule, preventing one click from triggering intelligence + radar +
+    // authority + optimisation + publishing simultaneously.
+    void autopilot.runCycle({ force: false }).catch(error => {
       console.error('[growth-autopilot] admin-triggered cycle failed', { error: error?.message || String(error) });
     });
     res.setHeader('Cache-Control', 'no-store');
-    return res.status(202).json({ ok: true, message: 'Growth Autopilot cycle started.' });
+    return res.status(202).json({ ok: true, message: 'Growth Autopilot due-work check started.' });
   } catch (error) {
     next(error);
   }
