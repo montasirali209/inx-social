@@ -46,6 +46,16 @@ async function updateConfig(req, res, next) {
 
 async function runNow(req, res, next) {
   try {
+    const config = await autopilot.getConfig();
+    if (config.enabled === false) {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(409).json({
+        ok: false,
+        code: 'GROWTH_AUTOPILOT_STOPPED',
+        message: 'Growth Autopilot is stopped. Press Start before running a manual cycle.'
+      });
+    }
+
     void autopilot.runCycle({ force: true }).catch(error => {
       console.error('[growth-autopilot] admin-triggered cycle failed', { error: error?.message || String(error) });
     });
