@@ -11,14 +11,15 @@ test('Stage 3 keeps the entire campaign decision inside Product Intelligence', (
 
   assert.match(workspace, /function ProductIntelligenceNode/);
   assert.match(workspace, />Campaign</);
-  assert.match(workspace, /campaign-setup-inline/);
   assert.match(workspace, /Generate Campaign/);
   assert.match(workspace, /Calculating campaign credits/);
   assert.doesNotMatch(workspace, /id: 'campaignSetup'/);
   assert.doesNotMatch(workspace, /function CampaignSetupNode/);
+  assert.doesNotMatch(workspace, /id: 'creativeStrategy'/);
+  assert.doesNotMatch(workspace, /id: 'generateCreatives'/);
 });
 
-test('Stage 3 campaign controls live inside the node instead of a sidebar', () => {
+test('Stage 3 campaign controls and live credit plan live inside the same card', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
   assert.match(workspace, /Campaign goal/);
@@ -28,55 +29,36 @@ test('Stage 3 campaign controls live inside the node instead of a sidebar', () =
   assert.match(workspace, /Creative style/);
   assert.match(workspace, /Audience direction/);
   assert.match(workspace, /\[5, 10, 20, 50\]/);
-  assert.match(workspace, /Custom creative count/);
+  assert.match(workspace, /getCreativeFlowGenerationEstimate\(project\.id, creativeCount\)/);
+  assert.match(workspace, /generationEstimate\.requiredCredits/);
   assert.match(workspace, /generateCreativeFlowCampaign/);
-  assert.match(workspace, /There is no settings sidebar/);
 });
 
-test('Stage 3 campaign setup is project-persisted and validates product analysis first', () => {
+test('Stage 3 one-click campaign generation remains project-persisted and validated', () => {
   const routes = read('src/routes/aiContentStudioRoutes.js');
   const controller = read('src/controllers/aiContentStudioController.js');
   const service = read('src/services/creativeFlowProjectService.js');
   const api = read('frontend/src/lib/creative-flow-api.ts');
 
-  assert.match(routes, /\/creative-flow\/projects\/:projectId\/campaign-setup/);
+  assert.match(routes, /campaign-generate/);
+  assert.match(controller, /generateCreativeFlowCampaign/);
   assert.match(controller, /creativeFlowCampaignSetupSchema/);
-  assert.match(controller, /saveCreativeFlowCampaignSetup/);
   assert.match(service, /async function saveCampaignSetup/);
   assert.match(service, /CREATIVE_FLOW_PRODUCT_ANALYSIS_REQUIRED/);
-  assert.match(service, /currentStage: 'CAMPAIGN_READY'/);
-  assert.match(service, /creativeCount: Math\.max\(1, Math\.min\(50/);
-  assert.match(api, /saveCreativeFlowCampaignSetup/);
+  assert.match(api, /generateCreativeFlowCampaign/);
 });
 
-test('Changing product inputs invalidates downstream Product Intelligence before a new campaign can proceed', () => {
+test('Changing product inputs invalidates downstream Product Intelligence', () => {
   const service = read('src/services/creativeFlowProjectService.js');
-
   assert.match(service, /workflow\.analysis = null/);
   assert.match(service, /status: 'DRAFT'/);
   assert.match(service, /currentStage: 'PROJECT_CREATED'/);
 });
 
-test('Stage 3 preserves legacy canvas schema while no longer persisting a separate Campaign Setup node', () => {
-  const service = read('src/services/creativeFlowProjectService.js');
-  const controller = read('src/controllers/aiContentStudioController.js');
-  const api = read('frontend/src/lib/creative-flow-api.ts');
+test('Stage 3 uses built-in visible React Flow edges rather than a custom hidden edge layer', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
-
-  assert.match(service, /campaignSetup: \{ x: 1280, y: 215 \}/);
-  assert.match(service, /campaignSetup: cleanPosition/);
-  assert.match(controller, /campaignSetup: creativeFlowPositionSchema\.optional\(\)/);
-  assert.match(api, /campaignSetup: \{ x: number; y: number \}/);
-  assert.doesNotMatch(workspace, /campaignSetup: byId\.get\('campaignSetup'\)/);
-});
-
-test('Stage 3 continues to use the motion system rather than introducing a separate page', () => {
-  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
-
-  assert.match(workspace, /Creative Flow · Stage 6/);
-  assert.match(workspace, /CreativeFlowMotionSlot/);
-  assert.match(workspace, /gsap\.fromTo/);
-  assert.match(workspace, /MotionEdge/);
-  assert.match(workspace, /defaultEdgeOptions=\{\{ zIndex: 6 \}\}/);
-  assert.match(workspace, /source: 'productIntelligence'[\s\S]*target: creativeNodeId\(post\.id\)/);
+  assert.match(workspace, /type: 'smoothstep'/);
+  assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'smoothstep', zIndex: 8/);
+  assert.match(workspace, /makeEdge/);
+  assert.doesNotMatch(workspace, /MotionEdge/);
 });
