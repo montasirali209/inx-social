@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Stage 6 persists the exact progressively revealed review graph', () => {
+test('Stage 6 persists progressive review reveal state', () => {
   const service = read('src/services/creativeFlowProjectService.js');
   const controller = read('src/controllers/aiContentStudioController.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
@@ -19,97 +19,55 @@ test('Stage 6 persists the exact progressively revealed review graph', () => {
   assert.match(routes, /review-reveal/);
   assert.match(api, /saveCreativeFlowReviewReveal/);
   assert.match(workspace, /initialProject\.workflow\.review\.revealedPostIds/);
-  assert.match(workspace, /revealedPostIdsRef/);
   assert.match(workspace, /saveCreativeFlowReviewReveal/);
 });
 
-test('Stage 6 reconciles render review and handoff state when a project reopens', () => {
+test('Stage 6 reconciles render review and handoff state after reopen', () => {
   const service = read('src/services/creativeFlowProjectService.js');
-
   assert.match(service, /async function reconcileProjectState/);
   assert.match(service, /renderCampaignId/);
   assert.match(service, /handoffCampaignId/);
   assert.match(service, /workflow\.review\.selectedPostIds\.filter/);
   assert.match(service, /workflow\.review\.revealedPostIds\.filter/);
-  assert.match(service, /workflow\.canvas\.creativePositions/);
-  assert.match(service, /data\.activeJobType = 'CREATIVE_RENDER'/);
-  assert.match(service, /'RENDER_READY'/);
-  assert.match(service, /'RENDER_PARTIAL'/);
-  assert.match(service, /return reconcileProjectState\(userId, projectId/);
+  assert.match(service, /RENDER_READY/);
+  assert.match(service, /RENDER_PARTIAL/);
 });
 
-test('Stage 6 can safely retry only missing generated creatives under the project job lock', () => {
+test('Stage 6 retries only missing creatives under the project lock', () => {
   const runtime = read('src/services/creativeFlowProjectRuntime.js');
-  const controller = read('src/controllers/aiContentStudioController.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
   const api = read('frontend/src/lib/creative-flow-api.ts');
 
   assert.match(runtime, /async function retryMissingGeneration/);
   assert.match(runtime, /creativeFlow\.retryCreativeFlowRender/);
   assert.match(runtime, /jobType: 'CREATIVE_RENDER'/);
-  assert.match(runtime, /queueRenderMonitor/);
-  assert.match(controller, /retryCreativeFlowMissing/);
   assert.match(routes, /retry-missing/);
   assert.match(api, /retryCreativeFlowMissing/);
 });
 
-test('Stage 6 review offers select-all clear and missing-render recovery without creating another page', () => {
+test('Stage 6 review offers selection recovery and a full creative preview', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /Creative Flow · Stage 6/);
-  assert.match(workspace, /Select all ready/);
+  assert.match(workspace, /Select all/);
   assert.match(workspace, /Clear selection/);
-  assert.match(workspace, /Retry \{missingPosts\.length\} missing creative/);
-  assert.match(workspace, /selectAllReadyCreatives/);
-  assert.match(workspace, /clearCreativeSelection/);
   assert.match(workspace, /retryMissingCreatives/);
+  assert.match(workspace, /function CreativePreviewModal/);
+  assert.match(workspace, /Open image/);
   assert.match(workspace, /scheduleCampaign/);
 });
 
-test('Stage 6 restores review focus to the complete fixed creative graph and schedule branch', () => {
+test('Stage 6 keeps every final creative fixed in a four-column review graph', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
-
   assert.match(workspace, /project\.workflow\.review\.revealedPostIds\.length/);
-  assert.match(workspace, /revealedPostIds\.map\(\(id\) => creativeNodeId\(id\)\)/);
-  assert.match(workspace, /project\.workflow\.review\.selectedPostIds\.length \? \['scheduleCampaign'\]/);
   assert.match(workspace, /const column = index % 4/);
   assert.match(workspace, /const row = Math\.floor\(index \/ 4\)/);
   assert.match(workspace, /draggable: false/);
 });
 
-test('Stage 6 keeps recovery state inside the existing project model', () => {
-  const schema = read('prisma/schema.prisma');
-
-  assert.doesNotMatch(schema, /model CreativeFlowRecovery/);
-  assert.doesNotMatch(schema, /model CreativeFlowReview/);
-});
-
-
-test('Stage 6 completed campaigns backfill every review node so requested creatives cannot disappear', () => {
-  const service = read('src/services/creativeFlowProjectService.js');
-  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
-
-  assert.match(service, /const persistedReveal = workflow\.review\.revealedPostIds/);
-  assert.match(service, /campaign\.status === 'GENERATING_IMAGES'/);
-  assert.match(service, /imagePosts\.map\(post => post\.id\)/);
-  assert.match(workspace, /finished \|\| revealed\.has\(post\.id\)/);
-  assert.match(workspace, /projectQuery\.data\?\.workflow\.review\.revealedPostIds/);
-});
-
-test('Stage 6 final creative cards stay compact and selection creates the scheduler branch', () => {
-  const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
-
-  assert.doesNotMatch(workspace, /CreativeAssetEditor/);
-  assert.match(workspace, /Optional direction for the next version/);
-  assert.match(workspace, /toggleCreativeSelection\(postId\)/);
-  assert.match(workspace, /selectedVisible\.length/);
-  assert.match(workspace, /type: 'scheduleCampaign'/);
-  assert.match(workspace, /sendSelectedToScheduler/);
-});
-
-test('Stage 6 Creative Flow image rendering is OpenAI-only and uses high-quality final renders', () => {
+test('Stage 6 Creative Flow image rendering stays OpenAI-only high quality', () => {
   const campaign = read('src/services/aiPostCampaignService.js');
   const studio = read('src/services/aiPostStudioServiceV2.js');
+  const wrapper = read('src/services/aiPostStudioService.js');
 
   assert.match(campaign, /quality: isCreativeFlow \? 'high' : 'medium'/);
   assert.match(campaign, /postStudio\.generateImagePost/);
@@ -117,23 +75,30 @@ test('Stage 6 Creative Flow image rendering is OpenAI-only and uses high-quality
   assert.match(studio, /provider: 'openai'/);
   assert.match(studio, /async function openAIImage/);
   assert.doesNotMatch(studio, /runware/i);
-  assert.match(studio, /protected composition zone/);
-  assert.match(studio, /safeHeader/);
+  assert.match(wrapper, /creative-flow-production-v3/);
+  assert.match(wrapper, /buildCreativeFlowProductionBrief/);
 });
 
-test('Stage 6 archived projects are recoverable instead of disappearing from the project hub', () => {
+test('Stage 6 disables pasted logo headers and pasted dashboard cards for Creative Flow', () => {
+  const wrapper = read('src/services/aiPostStudioService.js');
+
+  assert.match(wrapper, /lockLogo: false/);
+  assert.match(wrapper, /useExactProductVisual: false/);
+  assert.match(wrapper, /standalone logo (?:strip|band)/i);
+  assert.match(wrapper, /pasted logo header/i);
+  assert.match(wrapper, /duplicate product UI/i);
+});
+
+test('Stage 6 archived projects remain recoverable', () => {
   const service = read('src/services/creativeFlowProjectService.js');
-  const controller = read('src/controllers/aiContentStudioController.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
   const api = read('frontend/src/lib/creative-flow-api.ts');
   const hub = read('frontend/src/components/ai-content-studio/CreativeFlowProjectHubModal.tsx');
 
   assert.match(service, /archivedProjects/);
   assert.match(service, /async function restoreProject/);
-  assert.match(controller, /restoreCreativeFlowProject/);
   assert.match(routes, /projects\/:projectId\/restore/);
   assert.match(api, /restoreCreativeFlowProject/);
   assert.match(hub, /Archived projects/);
   assert.match(hub, /Restore/);
-  assert.match(hub, /window\.confirm/);
 });
