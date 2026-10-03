@@ -30,13 +30,16 @@ test('running success error and selected states use abstract signal-core motion'
   assert.match(motion, /CreativeFlowMotionState/);
 });
 
-test('connector layer uses reliable smooth-step paths with travelling flow pulses', () => {
+test('connector layer uses n8n-style bezier paths with travelling flow pulses', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /function FlowingEdge/);
-  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /function buildN8nBezierPath/);
+  assert.match(workspace, / C \$\{sourceControlX\}/);
+  assert.match(workspace, /const edgePath = buildN8nBezierPath/);
+  assert.doesNotMatch(workspace, /getSmoothStepPath/);
   assert.match(workspace, /type: 'flow'/);
   assert.match(workspace, /<animateMotion/);
+  assert.match(workspace, /path=\{edgePath\}/);
   assert.match(workspace, /edgeTypes=\{edgeTypes\}/);
   assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'flow', zIndex: 8 \}\}/);
   assert.match(workspace, /makeEdge\('url-analyze'/);

@@ -6,7 +6,6 @@ import {
   Position,
   ReactFlow,
   ReactFlowProvider,
-  getSmoothStepPath,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -238,17 +237,19 @@ function canonicalProject(project: CreativeFlowProject): CreativeFlowProject {
   }
 }
 
+function buildN8nBezierPath(sourceX: number, sourceY: number, targetX: number, targetY: number) {
+  const horizontalDistance = Math.abs(targetX - sourceX)
+  const verticalDistance = Math.abs(targetY - sourceY)
+  const direction = targetX >= sourceX ? 1 : -1
+  const bend = Math.max(84, Math.min(260, horizontalDistance * 0.46 + Math.min(36, verticalDistance * 0.08)))
+  const sourceControlX = sourceX + bend * direction
+  const targetControlX = targetX - bend * direction
+
+  return `M ${sourceX},${sourceY} C ${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`
+}
+
 function FlowingEdge(props: EdgeProps<FlowEdge>) {
-  const [edgePath] = getSmoothStepPath({
-    sourceX: props.sourceX,
-    sourceY: props.sourceY,
-    sourcePosition: props.sourcePosition,
-    targetX: props.targetX,
-    targetY: props.targetY,
-    targetPosition: props.targetPosition,
-    borderRadius: 14,
-    offset: 24,
-  })
+  const edgePath = buildN8nBezierPath(props.sourceX, props.sourceY, props.targetX, props.targetY)
   const active = Boolean(props.data?.active)
   const complete = Boolean(props.data?.complete)
   const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
