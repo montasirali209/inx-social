@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Stage 2 uses React Flow with built-in high-contrast connectors and shared motion graphics', () => {
+test('Stage 2 uses React Flow with visible pulse connectors and shared motion graphics', () => {
   const pkg = read('frontend/package.json');
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
   const motion = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowMotion.tsx');
@@ -14,16 +14,17 @@ test('Stage 2 uses React Flow with built-in high-contrast connectors and shared 
   assert.match(pkg, /"@xyflow\/react": "12\.12\.0"/);
   assert.match(pkg, /"gsap": "3\.15\.0"/);
   assert.match(workspace, /ReactFlowProvider/);
-  assert.match(workspace, /type: 'smoothstep'/);
-  assert.match(workspace, /animated: active/);
+  assert.match(workspace, /function FlowingEdge/);
+  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /type: 'flow'/);
+  assert.match(workspace, /<animateMotion/);
   assert.match(workspace, /zIndex: 8/);
-  assert.match(workspace, /strokeWidth: active \? 3\.2 : 2\.6/);
-  assert.doesNotMatch(workspace, /MotionEdge/);
+  assert.match(workspace, /strokeWidth: active \? 3\.1 : complete \? 2\.5 : 2\.1/);
   assert.match(motion, /CreativeFlowMotionState/);
   assert.match(motion, /ExpressiveMotion/);
 });
 
-test('Stage 2 protects React Flow edge SVG geometry on desktop and keeps the graph visibly flowing', () => {
+test('Stage 2 protects React Flow edge SVG geometry on desktop', () => {
   const responsive = read('frontend/src/mobile-responsive.css');
 
   assert.doesNotMatch(responsive, /img, video, canvas, svg\s*\{/);
@@ -32,8 +33,6 @@ test('Stage 2 protects React Flow edge SVG geometry on desktop and keeps the gra
   assert.match(responsive, /overflow: visible !important/);
   assert.match(responsive, /\.react-flow__edge-path\s*\{/);
   assert.match(responsive, /vector-effect: non-scaling-stroke/);
-  assert.match(responsive, /creative-flow-connector-travel/);
-  assert.match(responsive, /stroke-dasharray: 10 7/);
 });
 
 test('Stage 2 begins with product URL images and analyse controls then grows process nodes', () => {
@@ -57,7 +56,8 @@ test('Stage 2 always wires both source nodes into Analyse Product', () => {
 
   assert.match(workspace, /makeEdge\('url-analyze', 'productUrl', 'analyzeProduct'/);
   assert.match(workspace, /makeEdge\('images-analyze', 'productImages', 'analyzeProduct'/);
-  assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'smoothstep', zIndex: 8/);
+  assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'flow', zIndex: 8/);
+  assert.match(workspace, /edgeTypes=\{edgeTypes\}/);
   assert.match(workspace, /edges=\{edges\}/);
 });
 
