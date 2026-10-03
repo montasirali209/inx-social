@@ -34,10 +34,34 @@ async function updateConfig(req, res, next) {
       maxDraftAttempts: z.coerce.number().int().min(1).max(3).optional(),
       autoGenerateImage: z.boolean().optional(),
       autoPublish: z.boolean().optional(),
+      editorialRetryMinutes: z.coerce.number().min(5).max(30).optional(),
       retryHours: z.coerce.number().min(1).max(24).optional()
     }).parse(req.body || {});
 
-    const updated = await autopilot.updateConfig(input);
+    let effectiveInput = input;
+
+    // Starting Autopilot applies a conservative operating profile. This keeps
+    // one useful daily editorial lane while removing the high-frequency
+    // background pattern that previously multiplied API calls.
+    if (input.enabled === true) {
+      const current = await autopilot.getConfig();
+      effectiveInput = {
+        ...input,
+        intelligenceEveryHours: Math.max(Number(input.intelligenceEveryHours ?? current.intelligenceEveryHours ?? 24), 24),
+        editorialRadarEveryHours: 24,
+        hotTrendAutoEvaluate: false,
+        maxArticlesPerLocalDay: 1,
+        authorityEveryHours: 48,
+        authorityAutoEmail: false,
+        optimizationEveryHours: 168,
+        visibilityPromptCount: 1,
+        maxDraftAttempts: Math.min(Number(input.maxDraftAttempts ?? current.maxDraftAttempts ?? 2), 2),
+        editorialRetryMinutes: 30,
+        retryHours: Math.max(Number(input.retryHours ?? current.retryHours ?? 6), 6)
+      };
+    }
+
+    const updated = await autopilot.updateConfig(effectiveInput);
 
     // Stop is a hard runtime stop. Persisting enabled=false alone prevents new
     // AI cycles, but these calls also remove the Autopilot-owned timers and
