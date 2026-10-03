@@ -1,7 +1,37 @@
 /* Mobile guardrails shared by every customer workspace route. */
 html, body, #root { max-width: 100%; }
 #main-content, .route-stage, .route-stage > *, .analytics-fluid-canvas { min-width: 0; max-width: 100%; }
-img, video, canvas, svg { max-width: 100%; }
+img, video, canvas { max-width: 100%; }
+
+/* React Flow owns the geometry of its SVG edge layer. A generic responsive
+   `svg { max-width: 100% }` rule can constrain that layer differently across
+   browser engines (Chromium was clipping the desktop connectors while Safari
+   still showed them). Keep the edge canvas browser-consistent and make the
+   completed graph read like a live flow instead of static wiring. */
+.react-flow__edges {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  overflow: visible !important;
+}
+
+.react-flow__edge-path {
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-dasharray: 10 7;
+  animation: creative-flow-connector-travel 1.05s linear infinite !important;
+}
+
+@keyframes creative-flow-connector-travel {
+  to { stroke-dashoffset: -34; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge-path {
+    animation: none !important;
+    stroke-dasharray: none;
+  }
+}
 
 @media (max-width: 767px) {
   body { overflow-x: clip; }
