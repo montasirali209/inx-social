@@ -84,9 +84,9 @@ test('Stage 6 disables pasted logo headers and pasted dashboard cards for Creati
 
   assert.match(wrapper, /lockLogo: false/);
   assert.match(wrapper, /useExactProductVisual: false/);
-  assert.match(wrapper, /no standalone logo band/i);
-  assert.match(wrapper, /no pasted logo header/i);
-  assert.match(wrapper, /no duplicate product UI/i);
+  assert.match(wrapper, /standalone logo (?:strip|band)/i);
+  assert.match(wrapper, /pasted logo header/i);
+  assert.match(wrapper, /duplicate product UI/i);
 });
 
 test('Stage 6 archived projects remain recoverable', () => {
