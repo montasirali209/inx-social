@@ -18,7 +18,7 @@ const videoModelRegistry = require('./services/videoModelRegistryService');
 const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
 const ugcEngine = require('./services/ugcEngineService');
-const { startGrowthAutopilot, stopGrowthAutopilot } = require('./services/growthAutopilotService');
+const { startGrowthAutopilot, stopGrowthAutopilot } = require('./services/growthAutopilotSupervisor');
 const { runProductionSmoke: runUiStudioProductionSmoke } = require('../scripts/ui-studio-production-smoke');
 
 async function verifyNextLandingUpstream() {
