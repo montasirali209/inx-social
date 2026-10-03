@@ -44,6 +44,17 @@ test('connector layer uses reliable smooth-step paths with travelling flow pulse
   assert.doesNotMatch(workspace, /strokeDasharray/);
 });
 
+test('creative flow runtime guards keep custom connectors solid and arrange controls visible', () => {
+  const shell = read('frontend/index.html');
+
+  assert.match(shell, /\.react-flow__edge-flow path/);
+  assert.match(shell, /stroke-dasharray: none !important/);
+  assert.match(shell, /stroke-dashoffset: 0 !important/);
+  assert.match(shell, /Auto arrange workflow/);
+  assert.match(shell, /Fit Creative Flow to screen/);
+  assert.match(shell, /z-index: 1000 !important/);
+});
+
 test('product analysis and campaign generation preserve actionable controls', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
   assert.match(workspace, /Retry analysis/);
