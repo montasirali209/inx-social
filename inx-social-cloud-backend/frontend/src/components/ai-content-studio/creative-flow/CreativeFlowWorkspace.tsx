@@ -241,10 +241,11 @@ function buildN8nBezierPath(sourceX: number, sourceY: number, targetX: number, t
   const horizontalDistance = Math.abs(targetX - sourceX)
   const verticalDistance = Math.abs(targetY - sourceY)
   const direction = targetX >= sourceX ? 1 : -1
-  const bend = Math.max(84, Math.min(260, horizontalDistance * 0.46 + Math.min(36, verticalDistance * 0.08)))
+  // n8n-style routing: short horizontal departure/arrival with a bounded curve.
+  // The old large control points made parallel analysis edges swing through cards.
+  const bend = Math.max(44, Math.min(150, horizontalDistance * 0.34 + Math.min(18, verticalDistance * 0.035)))
   const sourceControlX = sourceX + bend * direction
   const targetControlX = targetX - bend * direction
-
   return `M ${sourceX},${sourceY} C ${sourceControlX},${sourceY} ${targetControlX},${targetY} ${targetX},${targetY}`
 }
 
@@ -322,19 +323,21 @@ function baseEdges(project: CreativeFlowProject): FlowEdge[] {
     makeEdge('images-analyze', 'productImages', 'analyzeProduct', running && progress <= 1, running || analysisReady),
   ]
 
-  if (visible > 0) {
-    edges.push(makeEdge('analyze-analysisSources', 'analyzeProduct', ANALYSIS_STEPS[0].id, running && progress <= 1, analysisReady || progress > 1))
-    for (let index = 1; index < visible; index += 1) {
-      edges.push(makeEdge(
-        `${ANALYSIS_STEPS[index - 1].id}-${ANALYSIS_STEPS[index].id}`,
-        ANALYSIS_STEPS[index - 1].id,
-        ANALYSIS_STEPS[index].id,
-        running && progress === index + 1,
-        analysisReady || progress > index + 1,
-      ))
-    }
-  }
+  // Product analysis is an umbrella process, not a four-card chain. Every visible
+  // process card receives its own branch from Analyse Product. This makes the
+  // dependency explicit and prevents an unrelated card-to-card snake route.
+  ANALYSIS_STEPS.slice(0, visible).forEach((step, index) => {
+    edges.push(makeEdge(
+      `analyze-${step.id}`,
+      'analyzeProduct',
+      step.id,
+      running && progress === index + 1,
+      analysisReady || progress > index + 1,
+    ))
+  })
 
+  // Once research is complete, all four evidence processes independently feed
+  // Product Intelligence. Bounded Bezier control points keep this fan-in clean.
   if (analysisReady) {
     ANALYSIS_STEPS.forEach((step) => edges.push(makeEdge(`${step.id}-intelligence`, step.id, 'productIntelligence', false, true)))
   }
@@ -1009,13 +1012,15 @@ function ProductIntelligenceNode(_: NodeProps) {
   const platforms = ['Instagram', 'Facebook', 'X', 'LinkedIn', 'TikTok', 'Threads', 'Bluesky', 'Pinterest']
   const goals = ['AI Recommended', 'Sales', 'Traffic', 'Awareness', 'Product launch']
   const styles = ['AI Recommended', 'Premium SaaS', 'Performance ads', 'Minimal editorial', 'Lifestyle', 'Infographic']
+  const evidenceConfidence = source.evidenceConfidence || brand.confidence
+  const sourceCount = source.sourceCoverage || source.sources.filter((item) => item.type === 'url' && item.ok).length || analysis.analysedReferences.length
 
   return <>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
     <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Right} type="source" />
     <NodeShell className="w-[450px] overflow-hidden border-brand-green/25 shadow-[0_26px_80px_rgba(34,197,94,.10)]">
       <div className="border-b border-border-soft bg-[linear-gradient(135deg,rgba(240,253,250,.8),white)] p-4"><div className="flex items-center gap-3"><CreativeFlowMotionSlot className="size-16 shrink-0" state={running ? 'working' : 'success'} /><div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-green">Product Intelligence</span><h4 className="mt-1 truncate text-[13px] font-semibold">{source.productName || brand.brandName || project.name}</h4><p className="mt-1 line-clamp-2 text-[8px] leading-4 text-text-muted">{source.summary || 'Product and brand sources analysed.'}</p></div></div></div>
-      <div className="p-4"><div className="grid grid-cols-3 gap-2"><div className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="text-[7px] uppercase text-text-soft">Claims</span><strong className="mt-1 block text-[12px]">{source.verifiedClaims.length}</strong></div><div className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="text-[7px] uppercase text-text-soft">References</span><strong className="mt-1 block text-[12px]">{analysis.analysedReferences.length}</strong></div><div className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="text-[7px] uppercase text-text-soft">Confidence</span><strong className="mt-1 block text-[10px] capitalize">{brand.confidence}</strong></div></div>{brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2"><span className="text-[7px] uppercase text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10" key={color} style={{ backgroundColor: color }} />)}</div></div>}{analysis.analysedUrl?.url && <a className="nodrag mt-3 inline-flex items-center gap-1.5 text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3" />{displayDomain(analysis.analysedUrl.url)}<ExternalLink className="size-2.5" /></a>}</div>
+      <div className="p-4"><div className="grid grid-cols-3 gap-2"><div className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="text-[7px] uppercase text-text-soft">Claims</span><strong className="mt-1 block text-[12px]">{source.verifiedClaims.length}</strong></div><div className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="text-[7px] uppercase text-text-soft">Sources</span><strong className="mt-1 block text-[12px]">{sourceCount}</strong></div><div className="rounded-xl border border-border-soft bg-slate-50 p-2.5"><span className="text-[7px] uppercase text-text-soft">Evidence</span><strong className="mt-1 block text-[10px] capitalize">{evidenceConfidence}</strong></div></div>{brand.colors.length > 0 && <div className="mt-3 flex items-center gap-2"><span className="text-[7px] uppercase text-text-soft">Palette</span><div className="flex gap-1">{brand.colors.slice(0, 6).map((color) => <span className="size-4 rounded-full border border-black/10" key={color} style={{ backgroundColor: color }} />)}</div></div>}{analysis.analysedUrl?.url && <div className="mt-3 flex flex-wrap items-center gap-2"><a className="nodrag inline-flex items-center gap-1.5 text-[8px] font-medium text-brand-cyan hover:underline" href={analysis.analysedUrl.url} rel="noreferrer" target="_blank"><Globe2 className="size-3" />{displayDomain(analysis.analysedUrl.url)}<ExternalLink className="size-2.5" /></a>{source.researchMode && <span className="rounded-full border border-border-soft bg-slate-50 px-2 py-0.5 text-[7px] text-text-soft">{source.researchMode.replace(/-/g, ' ')}</span>}</div>}</div>
 
       <button className={`nodrag flex w-full items-center gap-3 border-t border-border-soft px-4 py-3.5 text-left ${campaignExpanded ? 'bg-brand-purple/[.035]' : 'bg-slate-50/65'}`} onClick={() => setCampaignExpanded(!campaignExpanded)} type="button"><CreativeFlowMotionSlot className="size-11 shrink-0" state={running ? 'working' : finished ? 'success' : campaignExpanded ? 'selected' : 'idle'} /><span className="min-w-0 flex-1"><span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign</span><strong className="mt-0.5 block truncate text-[10px]">{running ? project.progress.label || 'Generating campaign…' : finished ? `${readyPosts.length} creatives ready` : `${creativeCount} creatives · ${campaignPlatforms.length} platform${campaignPlatforms.length === 1 ? '' : 's'}`}</strong><span className="mt-0.5 block truncate text-[7px] text-text-soft">{running ? 'Planning is handled automatically in the background' : `${campaignGoal} · ${creativeStyle}`}</span></span><ChevronDown className={`size-4 text-text-soft ${campaignExpanded ? 'rotate-180' : ''}`} /></button>
 
