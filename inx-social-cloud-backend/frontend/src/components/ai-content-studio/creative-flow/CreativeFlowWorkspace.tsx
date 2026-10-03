@@ -1,14 +1,17 @@
 import {
   Background,
+  BaseEdge,
   Controls,
   Handle,
   Position,
   ReactFlow,
   ReactFlowProvider,
+  getSmoothStepPath,
   useEdgesState,
   useNodesState,
   useReactFlow,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeProps,
   type Viewport,
@@ -28,6 +31,7 @@ import {
   FileImage,
   Globe2,
   ImagePlus,
+  LayoutGrid,
   Loader2,
   Maximize2,
   Pencil,
@@ -77,7 +81,7 @@ import { CreativeFlowMotionSlot } from './CreativeFlowMotion'
 
 type FlowNodeData = { analysisStep?: number }
 type FlowNode = Node<FlowNodeData>
-type FlowEdge = Edge<{ active?: boolean; complete?: boolean }>
+type FlowEdge = Edge<{ active?: boolean; complete?: boolean }, 'flow'>
 
 type LocalPreview = {
   id: string
@@ -134,6 +138,13 @@ type WorkspaceContextValue = {
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)
+
+const CANONICAL_CANVAS_POSITIONS = {
+  productUrl: { x: 40, y: 120 },
+  productImages: { x: 40, y: 420 },
+  analyzeProduct: { x: 470, y: 255 },
+  productIntelligence: { x: 1320, y: 215 },
+} as const
 
 function useWorkspace() {
   const value = useContext(WorkspaceContext)
@@ -208,12 +219,65 @@ function scheduleNodePosition(project: CreativeFlowProject, creativeCount: numbe
   return { x: base.x + 520 + columns * 340 + 380, y: base.y - 10 }
 }
 
-function edgeStyle(active: boolean, complete: boolean) {
+function canonicalProject(project: CreativeFlowProject): CreativeFlowProject {
   return {
-    stroke: complete ? '#22c55e' : active ? '#14b8a6' : '#64748b',
-    strokeWidth: active ? 3.2 : 2.6,
-    opacity: 0.95,
+    ...project,
+    workflow: {
+      ...project.workflow,
+      canvas: {
+        ...project.workflow.canvas,
+        positions: {
+          ...project.workflow.canvas.positions,
+          productUrl: { ...CANONICAL_CANVAS_POSITIONS.productUrl },
+          productImages: { ...CANONICAL_CANVAS_POSITIONS.productImages },
+          analyzeProduct: { ...CANONICAL_CANVAS_POSITIONS.analyzeProduct },
+          productIntelligence: { ...CANONICAL_CANVAS_POSITIONS.productIntelligence },
+        },
+      },
+    },
   }
+}
+
+function FlowingEdge(props: EdgeProps<FlowEdge>) {
+  const [edgePath] = getSmoothStepPath({
+    sourceX: props.sourceX,
+    sourceY: props.sourceY,
+    sourcePosition: props.sourcePosition,
+    targetX: props.targetX,
+    targetY: props.targetY,
+    targetPosition: props.targetPosition,
+    borderRadius: 14,
+    offset: 24,
+  })
+  const active = Boolean(props.data?.active)
+  const complete = Boolean(props.data?.complete)
+  const reduceMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const stroke = active ? '#14b8a6' : complete ? '#22c55e' : '#94a3b8'
+  const pulse = active ? '#22d3ee' : complete ? '#34d399' : '#cbd5e1'
+  const duration = active ? '1.05s' : complete ? '2.25s' : '3.1s'
+
+  return <>
+    <path d={edgePath} fill="none" pointerEvents="none" stroke="rgba(255,255,255,.94)" strokeLinecap="round" strokeWidth={active ? 6.4 : 5.2} vectorEffect="non-scaling-stroke" />
+    <BaseEdge
+      id={props.id}
+      path={edgePath}
+      style={{
+        stroke,
+        strokeWidth: active ? 3.1 : complete ? 2.5 : 2.1,
+        strokeLinecap: 'round',
+        opacity: complete || active ? 0.92 : 0.62,
+        filter: active ? 'drop-shadow(0 0 4px rgba(20,184,166,.38))' : undefined,
+      }}
+    />
+    {!reduceMotion && <>
+      <circle cx="0" cy="0" fill={pulse} r={active ? 4.2 : 3.2} style={{ filter: `drop-shadow(0 0 ${active ? 6 : 4}px ${pulse})` }}>
+        <animateMotion dur={duration} path={edgePath} repeatCount="indefinite" />
+      </circle>
+      {(active || complete) && <circle cx="0" cy="0" fill={pulse} opacity="0.7" r={active ? 3.3 : 2.6}>
+        <animateMotion begin={active ? '0.52s' : '1.12s'} dur={duration} path={edgePath} repeatCount="indefinite" />
+      </circle>}
+    </>}
+  </>
 }
 
 function makeEdge(id: string, source: string, target: string, active = false, complete = false): FlowEdge {
@@ -221,10 +285,8 @@ function makeEdge(id: string, source: string, target: string, active = false, co
     id,
     source,
     target,
-    type: 'smoothstep',
-    animated: active,
+    type: 'flow',
     zIndex: 8,
-    style: edgeStyle(active, complete),
     data: { active, complete },
   }
 }
@@ -328,6 +390,10 @@ const nodeTypes = {
   scheduleCampaign: ScheduleCampaignNode,
 }
 
+const edgeTypes = {
+  flow: FlowingEdge,
+}
+
 export function CreativeFlowWorkspace({ initialProject, activeProject, onBack }: {
   initialProject: CreativeFlowProject
   activeProject: CreativeFlowProject | null
@@ -356,6 +422,7 @@ function CreativeFlowWorkspaceInner({ initialProject, activeProject, onBack }: {
   const [reviewBusy, setReviewBusy] = useState(false)
   const [retryMissingBusy, setRetryMissingBusy] = useState(false)
   const [handoffBusy, setHandoffBusy] = useState(false)
+  const [arrangeBusy, setArrangeBusy] = useState(false)
   const [error, setError] = useState('')
   const [uploadProgress, setUploadProgress] = useState(0)
   const [localPreviews, setLocalPreviews] = useState<LocalPreview[]>([])
@@ -720,6 +787,38 @@ function CreativeFlowWorkspaceInner({ initialProject, activeProject, onBack }: {
     }
   }, [nodes, project.id, updateCachedProject])
 
+  const autoArrange = useCallback(async () => {
+    if (arrangeBusy) return
+    setArrangeBusy(true)
+    setError('')
+    try {
+      const arrangedProject = canonicalProject(project)
+      const review = reviewGraph(arrangedProject, renderCampaign, revealedIds)
+      const arrangedNodes = [...baseNodes(arrangedProject), ...review.nodes]
+      setNodes(arrangedNodes)
+      lastFocusRef.current = ''
+      const next = await saveCreativeFlowProjectCanvas(project.id, {
+        positions: {
+          productUrl: { ...CANONICAL_CANVAS_POSITIONS.productUrl },
+          productImages: { ...CANONICAL_CANVAS_POSITIONS.productImages },
+          analyzeProduct: { ...CANONICAL_CANVAS_POSITIONS.analyzeProduct },
+          productIntelligence: { ...CANONICAL_CANVAS_POSITIONS.productIntelligence },
+        },
+        creativePositions: {},
+        schedulePosition: null,
+        viewport: flow.getViewport(),
+      })
+      updateCachedProject(next)
+      window.setTimeout(() => {
+        void flow.fitView({ nodes: arrangedNodes.map((node) => ({ id: node.id })), padding: 0.2, duration: 650, maxZoom: 1.05 })
+      }, 80)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not restore the workflow layout.')
+    } finally {
+      setArrangeBusy(false)
+    }
+  }, [arrangeBusy, flow, project, renderCampaign, revealedIds, setNodes, updateCachedProject])
+
   const contextValue = useMemo<WorkspaceContextValue>(() => ({
     project,
     analysis,
@@ -777,7 +876,11 @@ function CreativeFlowWorkspaceInner({ initialProject, activeProject, onBack }: {
           <div className="flex flex-wrap items-center gap-2"><span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 6</span><span className="rounded-full border border-border-soft bg-slate-50 px-2 py-0.5 text-[8px] font-semibold text-text-soft">{project.activeJobType === 'PRODUCT_ANALYSIS' ? 'Analysing product' : project.activeJobType ? 'Campaign processing' : renderFinished(project) ? 'Review creatives' : analysis ? 'Configure campaign' : 'Source setup'}</span></div>
           <p className="mt-1 truncate text-[10px] font-semibold">{project.name}</p>
         </div>
-        <div className="pointer-events-auto flex gap-2"><button aria-label="Fit Creative Flow to screen" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted shadow-sm" onClick={() => void flow.fitView({ padding: 0.22, duration: 600, maxZoom: 1.05 })} type="button"><Maximize2 className="size-3.5" /></button><Button onClick={() => onBack(project)} size="sm">Projects</Button></div>
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button aria-label="Auto arrange workflow" className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border-soft bg-white px-2.5 text-[9px] font-semibold text-text-muted shadow-sm transition hover:border-brand-cyan/30 hover:text-brand-cyan disabled:opacity-50" disabled={arrangeBusy} onClick={() => void autoArrange()} title="Put every node back into the recommended layout" type="button">{arrangeBusy ? <Loader2 className="size-3.5 animate-spin" /> : <LayoutGrid className="size-3.5" />}<span className="hidden sm:inline">Arrange</span></button>
+          <button aria-label="Fit Creative Flow to screen" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted shadow-sm" onClick={() => void flow.fitView({ padding: 0.22, duration: 600, maxZoom: 1.05 })} type="button"><Maximize2 className="size-3.5" /></button>
+          <Button onClick={() => onBack(project)} size="sm">Projects</Button>
+        </div>
       </div>
 
       {error && <div className="pointer-events-none absolute bottom-4 left-1/2 z-40 w-[min(620px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-red-200 bg-red-50/96 px-3 py-2.5 text-center text-[9px] text-red-700 shadow-lg">{error}</div>}
@@ -786,8 +889,9 @@ function CreativeFlowWorkspaceInner({ initialProject, activeProject, onBack }: {
       <ReactFlow
         colorMode="light"
         defaultViewport={project.workflow.canvas.viewport}
-        defaultEdgeOptions={{ type: 'smoothstep', zIndex: 8, style: { stroke: '#64748b', strokeWidth: 2.6, opacity: 0.95 } }}
+        defaultEdgeOptions={{ type: 'flow', zIndex: 8 }}
         edges={edges}
+        edgeTypes={edgeTypes}
         edgesFocusable={false}
         fitView={!project.workflow.canvas.viewport.zoom}
         maxZoom={1.8}

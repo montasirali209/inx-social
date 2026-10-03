@@ -68,5 +68,6 @@ test('Stage 4 renders generated creative edges directly from Product Intelligenc
   assert.match(workspace, /`product-\$\{post\.id\}`/);
   assert.match(workspace, /'productIntelligence'/);
   assert.match(workspace, /creativeNodeId\(post\.id\)/);
-  assert.match(workspace, /type: 'smoothstep'/);
+  assert.match(workspace, /type: 'flow'/);
+  assert.match(workspace, /function FlowingEdge/);
 });

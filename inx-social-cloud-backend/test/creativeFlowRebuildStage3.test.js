@@ -55,10 +55,13 @@ test('Changing product inputs invalidates downstream Product Intelligence', () =
   assert.match(service, /currentStage: 'PROJECT_CREATED'/);
 });
 
-test('Stage 3 uses built-in visible React Flow edges rather than a custom hidden edge layer', () => {
+test('Stage 3 uses a visible custom React Flow edge renderer with directional pulses', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
-  assert.match(workspace, /type: 'smoothstep'/);
-  assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'smoothstep', zIndex: 8/);
+  assert.match(workspace, /function FlowingEdge/);
+  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /type: 'flow'/);
+  assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'flow', zIndex: 8/);
+  assert.match(workspace, /<animateMotion/);
   assert.match(workspace, /makeEdge/);
-  assert.doesNotMatch(workspace, /MotionEdge/);
+  assert.match(workspace, /edgeTypes=\{edgeTypes\}/);
 });

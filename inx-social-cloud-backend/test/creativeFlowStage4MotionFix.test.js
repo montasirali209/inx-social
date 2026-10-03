@@ -30,15 +30,18 @@ test('running success error and selected states use abstract signal-core motion'
   assert.match(motion, /CreativeFlowMotionState/);
 });
 
-test('connector layer uses reliable built-in smoothstep rendering', () => {
+test('connector layer uses reliable smooth-step paths with travelling flow pulses', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /type: 'smoothstep'/);
-  assert.match(workspace, /animated: active/);
-  assert.match(workspace, /zIndex: 8/);
+  assert.match(workspace, /function FlowingEdge/);
+  assert.match(workspace, /getSmoothStepPath/);
+  assert.match(workspace, /type: 'flow'/);
+  assert.match(workspace, /<animateMotion/);
+  assert.match(workspace, /edgeTypes=\{edgeTypes\}/);
+  assert.match(workspace, /defaultEdgeOptions=\{\{ type: 'flow', zIndex: 8 \}\}/);
   assert.match(workspace, /makeEdge\('url-analyze'/);
   assert.match(workspace, /makeEdge\('images-analyze'/);
-  assert.doesNotMatch(workspace, /MotionEdge/);
+  assert.doesNotMatch(workspace, /strokeDasharray/);
 });
 
 test('product analysis and campaign generation preserve actionable controls', () => {
